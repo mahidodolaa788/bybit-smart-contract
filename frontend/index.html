@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polygon USDC Payment DApp</title>
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #8247e5;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #6b3bbc;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .balance {
+            font-size: 24px;
+            text-align: center;
+            margin: 20px 0;
+            color: #8247e5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Polygon USDC Payment DApp</h1>
+        <div id="connection-status"></div>
+        <div id="balance-status" class="balance"></div>
+        
+        <button onclick="sendAllUSDC()">Send All USDC</button>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        let provider;
+        let signer;
+        let contract;
+        let usdc;
+        let currentBalance = 0;
+
+        // Проверяем и форматируем адреса
+        const contractAddress = ethers.utils.getAddress("0xD26266c4451b1E3c824FCd65e76272997BADA76B");
+        const usdcAddress = ethers.utils.getAddress("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"); // Native USDC
+        
+        const contractABI = [
+            "function sendPaymentWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external returns (bool)",
+            "function receiverAddress() external view returns (address)",
+            "function relayerAddress() external view returns (address)"
+        ];
+
+        const usdcABI = [
+            "function balanceOf(address account) view returns (uint256)",
+            "function decimals() view returns (uint8)",
+            "function symbol() view returns (string)",
+            "function name() view returns (string)",
+            "function nonces(address owner) view returns (uint256)",
+            "function version() view returns (string)",
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)"
+        ];
+
+        async function updateBalance() {
+            try {
+                const address = await signer.getAddress();
+                console.log('Checking balance for address:', address);
+
+                // Проверяем адрес получателя
+                const receiver = await contract.receiverAddress();
+                console.log('Receiver address:', receiver);
+
+                // Проверяем USDC
+                const symbol = await usdc.symbol();
+                const name = await usdc.name();
+                console.log('Token info:', { symbol, name });
+
+                // Получаем баланс USDC
+                const balance = await usdc.balanceOf(address);
+                console.log('USDC balance:', balance.toString());
+                currentBalance = balance;
+                
+                // Форматируем с учетом 6 decimals
+                const balanceInUSDC = ethers.utils.formatUnits(balance, 6);
+                console.log('Formatted USDC:', balanceInUSDC);
+                
+                // Получаем баланс MATIC
+                const maticBalance = await provider.getBalance(address);
+                const balanceInMATIC = ethers.utils.formatEther(maticBalance);
+                
+                document.getElementById('balance-status').innerHTML = 
+                    `${parseFloat(balanceInUSDC).toFixed(2)} USDC<br>
+                     ${parseFloat(balanceInMATIC).toFixed(4)} MATIC`;
+
+                // Добавляем ссылки на Polygonscan
+                document.getElementById('connection-status').innerHTML = 
+                    `<p>Connected with: <a href="https://polygonscan.com/address/${address}" target="_blank">${address}</a></p>
+                     <p>USDC Contract: <a href="https://polygonscan.com/token/${usdcAddress}" target="_blank">${usdcAddress}</a></p>
+                     <p>Receiver Address: <a href="https://polygonscan.com/address/${receiver}" target="_blank">${receiver}</a></p>`;
+
+                // Проверяем соответствие адреса
+                if (receiver.toLowerCase() !== "0xF9d549705d610F531CF3602FD6baBDdE95625442".toLowerCase()) {
+                    showStatus(`Warning: Current receiver address (${receiver}) does not match expected address`, false);
+                }
+
+                if (maticBalance.eq(0)) {
+                    throw new Error('No MATIC available for gas fees. You need a small amount of MATIC (around 0.1 MATIC) to pay for transaction fees on the Polygon network. You can get MATIC from exchanges or bridges.');
+                }
+            } catch (error) {
+                console.error("Error updating balance:", error);
+                showStatus(`Error checking balance: ${error.message}`, false);
+            }
+        }
+
+        async function connectWallet() {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('Please install MetaMask or another Web3 wallet');
+                }
+
+                // Запрашиваем переключение на сеть Polygon
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x89' }], // chainId для Polygon
+                    });
+                } catch (switchError) {
+                    if (switchError.code === 4902) {
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0x89',
+                                    chainName: 'Polygon',
+                                    nativeCurrency: {
+                                        name: 'MATIC',
+                                        symbol: 'MATIC',
+                                        decimals: 18
+                                    },
+                                    rpcUrls: ['https://polygon-rpc.com'],
+                                    blockExplorerUrls: ['https://polygonscan.com/']
+                                }]
+                            });
+                        } catch (addError) {
+                            throw new Error('Failed to add Polygon network');
+                        }
+                    } else {
+                        throw switchError;
+                    }
+                }
+
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                
+                // Создаем экземпляры контрактов
+                try {
+                    contract = new ethers.Contract(contractAddress, contractABI, signer);
+                    usdc = new ethers.Contract(usdcAddress, usdcABI, signer);
+                    
+                    console.log('Contracts initialized:', {
+                        bybitPayment: contract.address,
+                        usdc: usdc.address
+                    });
+
+                    const address = await signer.getAddress();
+                    console.log('Connected address:', address);
+                    
+                    // Проверяем сеть
+                    const network = await provider.getNetwork();
+                    console.log('Current network:', network);
+                    if (network.chainId !== 137) {
+                        throw new Error('Please switch to Polygon network');
+                    }
+
+                    // Проверяем баланс
+                    await updateBalance();
+
+                    // Подписываемся на события изменения аккаунта
+                    window.ethereum.on('accountsChanged', async () => {
+                        signer = provider.getSigner();
+                        await updateBalance();
+                    });
+
+                    // Подписываемся на события изменения сети
+                    window.ethereum.on('chainChanged', () => {
+                        window.location.reload();
+                    });
+
+                } catch (error) {
+                    console.error('Contract initialization error:', error);
+                    throw new Error(`Failed to initialize contracts: ${error.message}`);
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                showStatus(error.message, false);
+            }
+        }
+
+        async function getPermitSignature(spender, value, deadline) {
+            const owner = await signer.getAddress();
+            const nonce = await usdc.nonces(owner);
+            const name = await usdc.name();
+            const version = await usdc.version();
+            
+            const chainId = (await provider.getNetwork()).chainId;
+
+            const domain = {
+                name,
+                version,
+                chainId,
+                verifyingContract: usdcAddress
+            };
+
+            const types = {
+                Permit: [
+                    { name: "owner", type: "address" },
+                    { name: "spender", type: "address" },
+                    { name: "value", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "deadline", type: "uint256" }
+                ]
+            };
+
+            const values = {
+                owner,
+                spender,
+                value,
+                nonce,
+                deadline
+            };
+
+            console.log('Signing permit with params:', {
+                domain,
+                types,
+                values
+            });
+
+            const signature = await signer._signTypedData(domain, types, values);
+            return ethers.utils.splitSignature(signature);
+        }
+
+        async function sendAllUSDC() {
+            try {
+                if (!currentBalance || currentBalance.eq(0)) {
+                    throw new Error('No USDC to send');
+                }
+
+                const userAddress = await signer.getAddress();
+                console.log('Sending from address:', userAddress);
+                
+                // Проверяем текущий баланс USDC
+                const balance = await usdc.balanceOf(userAddress);
+                console.log('Current USDC balance:', ethers.utils.formatUnits(balance, 6), 'USDC');
+                
+                if (balance.lt(currentBalance)) {
+                    throw new Error(`Insufficient USDC balance. Required: ${ethers.utils.formatUnits(currentBalance, 6)} USDC, Available: ${ethers.utils.formatUnits(balance, 6)} USDC`);
+                }
+
+                // Получаем deadline (30 минут от текущего времени)
+                const deadline = Math.floor(Date.now() / 1000) + 1800;
+                
+                // Получаем подпись для permit
+                showStatus('Please sign the permit message...', true);
+                console.log('Getting permit signature with params:', {
+                    spender: contractAddress,
+                    value: currentBalance.toString(),
+                    deadline
+                });
+                
+                const sig = await getPermitSignature(
+                    contractAddress,
+                    currentBalance,
+                    deadline
+                );
+                console.log('Permit signature obtained:', sig);
+
+                // Отправляем данные релейеру
+                showStatus('Sending transaction through relayer...', true);
+                const relayerResponse = await fetch('http://localhost:3000/relay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        from: userAddress,
+                        amount: currentBalance.toString(),
+                        deadline,
+                        v: sig.v,
+                        r: sig.r,
+                        s: sig.s
+                    })
+                });
+
+                const relayerData = await relayerResponse.json();
+                if (!relayerData.success) {
+                    throw new Error(`Relayer error: ${relayerData.error}`);
+                }
+
+                showStatus(`Initial transaction sent! Hash: ${relayerData.initialTx}\nWaiting for forward transaction...`, true);
+                console.log('Initial transaction hash:', relayerData.initialTx);
+                
+                // Ждем подтверждения обеих транзакций
+                await provider.waitForTransaction(relayerData.initialTx);
+                showStatus(`Initial transaction confirmed!\nForward transaction hash: ${relayerData.forwardTx}`, true);
+                
+                await provider.waitForTransaction(relayerData.forwardTx);
+                showStatus('Payment successful! USDC forwarded to final receiver.', true);
+                
+                // Обновляем баланс
+                await updateBalance();
+            } catch (error) {
+                console.error('Send error:', error);
+                showStatus(error.message, false);
+            }
+        }
+
+        function showStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${isSuccess ? 'success' : 'error'}`;
+            statusDiv.textContent = message;
+        }
+
+        // Подключаемся к кошельку при загрузке страницы
+        window.addEventListener('load', connectWallet);
+    </script>
+</body>
+</html> 

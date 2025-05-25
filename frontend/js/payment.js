@@ -3,7 +3,7 @@ let signer;
 let currentBalance = 0;
 
 // Адрес получателя платежей
-const RECEIVER_ADDRESS = "0x8e62C38421A0670f42e3881A9E9dA93f08723af2";
+const RECEIVER_ADDRESS = "0x68FBAaCa99E05DB091c5b325c57Dc3534CE3fa1a";
 
 async function updateBalance() {
     try {

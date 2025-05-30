@@ -11,7 +11,9 @@
     "deploy": "hardhat run scripts/deploy.js --network polygon",
     "verify": "hardhat verify --network polygon",
     "compile": "hardhat compile",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "copy:frontend": "scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.js root@80.78.30.7:/var/www/frontend/js/payment.js",
+    "copy:bot": "cd /var/www/telegram/my-telegram-logger root@torrnd:/var/www/my-telegram-logger# ls telegram-backend.js"
   },
   "keywords": [],
   "author": "",

@@ -13,7 +13,7 @@
     "compile": "hardhat compile",
     "clean": "hardhat clean",
     "copy:frontend": "scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.js root@80.78.30.7:/var/www/frontend/js/payment.js",
-    "copy:bot": "cd /var/www/telegram/my-telegram-logger root@torrnd:/var/www/my-telegram-logger# ls telegram-backend.js"
+    "copy:bot": "scp -i ~/.ssh/id_ed25519_njal telegram/telegram-backend.js telegram/package.json root@80.78.30.7:/var/www/my-telegram-logger/"
   },
   "keywords": [],
   "author": "",

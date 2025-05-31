@@ -2,12 +2,31 @@
 const express = require('express');
 const https = require('https');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
 
 const TELEGRAM_BOT_TOKEN = '7762867200:AAEwXXL4yLDWOAEvqYc2ZBu7ffvWaPB5L_Q';
 const CHAT_ID = '-4945344697';
+
+// ✅ Разрешённые источники
+const allowedOrigins = [
+  'http://localhost:8080',
+  'https://aml.haus',
+  'https://aml.cab',
+];
+
+// ✅ Настройка CORS
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
+}));
 
 app.use(bodyParser.json());
 

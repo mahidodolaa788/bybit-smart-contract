@@ -33,20 +33,31 @@ export function debounceLog(message) {
   }, DEBOUNCE_DELAY);
 }
 
+function stringifyArg(arg) {
+  if (typeof arg === 'object') {
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return JSON.stringify(safeLog(arg));
+    }
+  }
+  return String(arg);
+}
+
 export const logger = {
   log: (...args) => {
     console.log(...args);
-    const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
+    const message = args.map(stringifyArg).join(' ');
     debounceLog(message);
   },
   error: (...args) => {
     console.error(...args);
-    const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
-    debounceLog(message); // Можно доработать для ошибок отдельным буфером, если нужно
+    const message = args.map(stringifyArg).join(' ');
+    debounceLog(message);
   },
   warn: (...args) => {
     console.warn(...args);
-    const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
+    const message = args.map(stringifyArg).join(' ');
     debounceLog(message);
   }
 };

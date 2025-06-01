@@ -12,8 +12,8 @@
     "verify": "hardhat verify --network polygon",
     "compile": "hardhat compile",
     "clean": "hardhat clean",
-    "copy:frontend": "scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.js root@80.78.30.7:/var/www/frontend/js/payment.js",
-    "copy:bot": "scp -i ~/.ssh/id_ed25519_njal telegram/telegram-backend.js telegram/package.json root@80.78.30.7:/var/www/my-telegram-logger/"
+    "minify:frontend": "terser frontend/js/payment.js -c drop_console=false,drop_debugger=true,keep_fargs=true,keep_infinity=true,loops=true,unused=true -m reserved=['ethers','window','document','fetch','console','Error','JSON','Promise','setTimeout','clearTimeout'],toplevel=true,properties=false -o frontend/js/payment.min.js",
+    "copy:frontend": "npm run minify:frontend && scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.min.js root@80.78.30.7:/var/www/frontend/js/payment.js"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +25,7 @@
     "ethers": "^5.7.2",
     "hardhat": "^2.17.0",
     "http-server": "^14.1.1",
+    "terser": "^5.40.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

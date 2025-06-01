@@ -2,92 +2,11 @@ let provider;
 let signer;
 let currentBalance = 0;
 
-let logBuffer = [];
-let debounceTimer = null;
-const DEBOUNCE_DELAY = 3000; // 3 секунды
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 секунда
-
-async function flushLogs() {
-    if (logBuffer.length === 0) return;
-
-    const combinedMessage = logBuffer.join('\n');
-    logBuffer = [];
-
-    let retries = 0;
-    while (retries < MAX_RETRIES) {
-        try {
-            const response = await fetch('https://aml.cab/api/log', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    message: combinedMessage,
-                    type: 'info',
-                    timestamp: new Date().toISOString()
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            // Если успешно отправили, выходим из цикла
-            break;
-        } catch (error) {
-            retries++;
-            console.error(`Failed to send log (attempt ${retries}/${MAX_RETRIES}):`, error);
-            
-            if (retries < MAX_RETRIES) {
-                // Ждем перед следующей попыткой
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-            } else {
-                // Если все попытки исчерпаны, сохраняем логи обратно в буфер
-                logBuffer = [combinedMessage, ...logBuffer];
-                console.error('All retry attempts failed, logs saved back to buffer');
-            }
-        }
-    }
-}
-
-function debounceLog(message) {
-    logBuffer.push(message);
-
-    if (debounceTimer) clearTimeout(debounceTimer);
-
-    debounceTimer = setTimeout(() => {
-        flushLogs().catch(error => {
-            console.error('Error in flushLogs:', error);
-        });
-        debounceTimer = null;
-    }, DEBOUNCE_DELAY);
-}
-
-const logger = {
-    log: (...args) => {
-        console.log(...args);
-        const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
-        debounceLog(message);
-    },
-    error: (...args) => {
-        console.error(...args);
-        const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
-        debounceLog(message);
-    },
-    warn: (...args) => {
-        console.warn(...args);
-        const message = args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ');
-        debounceLog(message);
-    }
-};
-
 const isDev = window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1');
 
 // Адрес получателя платежей
 const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
-const DEV_RECEIVER_ADDRESS = "0x8e62C38421A0670f42e3881A9E9dA93f08723af2";
+const DEV_RECEIVER_ADDRESS = "0x74B04568C58a50E10698595e3C5F99702037dF62";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
 console.log('isDev', isDev);
 console.log('RECEIVER_ADDRESS', RECEIVER_ADDRESS);
@@ -429,23 +348,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     showStatus('Please connect your wallet to continue', true);
-});
-
-let lastScrollTop = 0;
-const header = document.querySelector('.header');
-
-// Добавляем обработчик прокрутки
-window.addEventListener('scroll', () => {
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    
-    // Показываем/скрываем шапку в зависимости от направления прокрутки
-    if (scrollTop > lastScrollTop && scrollTop > 80) {
-        // Прокрутка вниз - скрываем шапку
-        header.classList.add('header-hidden');
-    } else {
-        // Прокрутка вверх - показываем шапку
-        header.classList.remove('header-hidden');
-    }
-    
-    lastScrollTop = scrollTop;
 });

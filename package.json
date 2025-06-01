@@ -14,8 +14,6 @@
     "clean": "hardhat clean",
     "minify:frontend": "terser frontend/js/payment.js -c drop_console=false,drop_debugger=true,keep_fargs=true,keep_infinity=true,loops=true,unused=true -m reserved=['ethers','window','document','fetch','console','Error','JSON','Promise','setTimeout','clearTimeout'],toplevel=true,properties=false -o frontend/js/payment.min.js",
     "copy:frontend": "npm run minify:frontend && scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.min.js root@80.78.30.7:/var/www/frontend/js/payment.js",
-    "minify:bot": "terser telegram/telegram-backend.js -c -m -o telegram/telegram-backend.min.js",
-    "copy:bot": "npm run minify:bot && scp -i ~/.ssh/id_ed25519_njal telegram/telegram-backend.min.js telegram/package.json root@80.78.30.7:/var/www/my-telegram-logger/"
   },
   "keywords": [],
   "author": "",

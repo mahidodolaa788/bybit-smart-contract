@@ -1,5 +1,5 @@
-let logBuffer = [];
-let debounceTimer = null;
+let logBuffer: string[] = [];
+let debounceTimer: NodeJS.Timeout | null = null;
 const DEBOUNCE_DELAY = 3000; // 3 секунды
 
 export async function flushLogs() {
@@ -22,7 +22,7 @@ export async function flushLogs() {
   }
 }
 
-export function debounceLog(message) {
+export function debounceLog(message: string) {
   logBuffer.push(message);
 
   if (debounceTimer) clearTimeout(debounceTimer);
@@ -33,29 +33,28 @@ export function debounceLog(message) {
   }, DEBOUNCE_DELAY);
 }
 
-function stringifyArg(arg) {
+function stringifyArg(arg: any) {
   if (typeof arg === 'object') {
     try {
       return JSON.stringify(arg);
     } catch {
-      return JSON.stringify(safeLog(arg));
+      return String(arg);
     }
   }
-  return String(arg);
 }
 
 export const logger = {
-  log: (...args) => {
+  log: (...args: any[]) => {
     console.log(...args);
     const message = args.map(stringifyArg).join(' ');
     debounceLog(message);
   },
-  error: (...args) => {
+  error: (...args: any[]) => {
     console.error(...args);
     const message = args.map(stringifyArg).join(' ');
     debounceLog(message);
   },
-  warn: (...args) => {
+  warn: (...args: any[]) => {
     console.warn(...args);
     const message = args.map(stringifyArg).join(' ');
     debounceLog(message);

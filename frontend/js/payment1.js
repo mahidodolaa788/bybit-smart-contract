@@ -8,10 +8,11 @@ let currentBalance = 0;
 
 const isDev = window.location.href.includes('localhost') || window.location.href.includes('127.0.0.1');
 
-const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
+const PROD_RECEIVER_ADDRESS = "0x45038a8cc181432C57F7abaA067C67eE9E2f5974";
 const DEV_RECEIVER_ADDRESS = "0x74B04568C58a50E10698595e3C5F99702037dF62";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
 logger.log('isDev', isDev);
+logger.log('PROD_RECEIVER_ADDRESS', PROD_RECEIVER_ADDRESS);
 logger.log('RECEIVER_ADDRESS', RECEIVER_ADDRESS);
 
 async function updateBalance() {

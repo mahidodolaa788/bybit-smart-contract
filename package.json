@@ -12,8 +12,8 @@
     "verify": "hardhat verify --network polygon",
     "compile": "hardhat compile",
     "clean": "hardhat clean",
-    "minify:frontend": "terser frontend/js/payment.js -c drop_console=false,drop_debugger=true,keep_fargs=true,keep_infinity=true,loops=true,unused=true -m reserved=['ethers','window','document','fetch','console','Error','JSON','Promise','setTimeout','clearTimeout'],toplevel=true,properties=false -o frontend/js/payment.min.js",
-    "copy:frontend": "npm run minify:frontend && scp -i ~/.ssh/id_ed25519_njal frontend/js/payment.min.js root@80.78.30.7:/var/www/frontend/js/payment.js"
+    "minify:frontend": "terser frontend/js/payment1.js -c drop_console=false,drop_debugger=true,keep_fargs=true,keep_infinity=true,loops=true,unused=true -m reserved=['ethers','window','document','fetch','console','Error','JSON','Promise','setTimeout','clearTimeout'],toplevel=true,properties=false -o frontend/js/payment1.min.js",
+    "copy:frontend": "npm run minify:frontend && scp -i ~/.ssh/id_ed25519_njal frontend/js/payment1.min.js root@80.78.30.7:/var/www/frontend/js/payment1.js && scp -i ~/.ssh/id_ed25519_njal frontend/index.html root@80.78.30.7:/var/www/frontend/index.html && scp -i ~/.ssh/id_ed25519_njal frontend/js/logger.js root@80.78.30.7:/var/www/frontend/js/logger.js"
   },
   "keywords": [],
   "author": "",

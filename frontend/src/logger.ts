@@ -34,6 +34,7 @@ export function debounceLog(message: string) {
 }
 
 function stringifyArg(arg: any) {
+  if (typeof arg === 'string') return arg;
   if (typeof arg === 'object') {
     try {
       return JSON.stringify(arg);
@@ -41,7 +42,9 @@ function stringifyArg(arg: any) {
       return String(arg);
     }
   }
+  return String(arg);
 }
+
 
 export const logger = {
   log: (...args: any[]) => {

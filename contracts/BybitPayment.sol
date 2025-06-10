@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
+// версия для компилятора. Последняя стабильная - 0.8.30
 pragma solidity ^0.8.17;
 
+// TODO: взять интерфейс из OpenZeppelin
 interface IUSDC {
     function transferFrom(
         address from,
@@ -28,12 +30,17 @@ contract BybitPayment {
     string public constant name = "BybitPayment";
     string public constant version = "1";
     
-    // EIP-712 typehash
+    // EIP-712 typehash - это хеш строки с описанием структуры данных, которую
+    // кто-то должен подписать.
+    // bytes32 - тип переменной-константы (32 байта)
+    // public constant - видна извне и не изменяется
+    // keccak256 -  функция хеширования, как SHA-3 (Ethereum использует именно её)
     bytes32 public constant PAYMENT_TYPEHASH = keccak256(
+        // TODO: @openzeppelin/contracts имеет поддержку EIP712, где уже предусмотрено безопасное формирование typehash'ей.
         "PaymentMessage(address from,uint256 amount,uint256 nonce,address verifyingContract)"
     );
     
-    // EIP-712 domain separator
+    // EIP-712 сепаратор - шех структуры, состоящий из name, version, chainId, veryfyingContract,
     bytes32 public immutable DOMAIN_SEPARATOR;
     
     event PaymentProcessed(
@@ -90,6 +97,7 @@ contract BybitPayment {
     mapping(address => uint256) public nonces;
     
     constructor(address _usdc, address _receiver, address _relayer) {
+        // проверки на то, что адреса не равны нулю
         require(_usdc != address(0), "Invalid USDC address");
         require(_receiver != address(0), "Invalid receiver address");
         require(_relayer != address(0), "Invalid relayer address");

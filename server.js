@@ -9,7 +9,7 @@ app.use(express.json());
 
 // Конфигурация для Polygon
 const POLYGON_RPC = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const CONTRACT_ADDRESS = "0xD2F05B5c0D9aBFf1Bd08eD9138C207cb15dFbf2A";
 const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
 const MIN_MATIC_BALANCE = ethers.utils.parseEther("0.1"); // Минимальный баланс 0.1 MATIC
@@ -48,19 +48,24 @@ let usdc;
 // Функция инициализации релейера
 async function initializeRelayer() {
     try {
-        if (!RELAYER_PRIVATE_KEY) {
-            throw new Error('RELAYER_PRIVATE_KEY not set in environment');
+        if (!PRIVATE_KEY) {
+            throw new Error('PRIVATE_KEY not set in environment');
         }
 
         console.log('Initializing relayer...');
-        relayerWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, provider);
+        // возвращает объект кошелька, приватный ключ которого мы предоставили
+        // и может подписывать транзакции
+        relayerWallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        // передаем в НАШ Contract наш Wallet, чтобы подписывать транзакции от имени релейера
         contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, relayerWallet);
+        // передаем в USDC контракт НАШ wallet
         usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, relayerWallet);
 
         const address = await relayerWallet.getAddress();
         console.log('Relayer address:', address);
 
         // Проверяем, что адрес релейера совпадает с контрактом
+        // Такое условие в моем контракте, проверить потом, зачем это нужно
         console.log('Checking relayer address in contract...');
         const contractRelayer = await contract.relayer();
         console.log('Contract relayer address:', contractRelayer);
@@ -69,36 +74,16 @@ async function initializeRelayer() {
         }
         console.log('Relayer address verified');
 
-        // Проверяем баланс MATIC
+        // Проверяем баланс MATIC на адресе релейера
         const maticBalance = await provider.getBalance(address);
         console.log('Relayer MATIC balance:', ethers.utils.formatEther(maticBalance));
 
-        // Проверяем баланс USDC
+        // Не понятно, зачем проверять баланс USDC на адресе релейера
         const usdcBalance = await usdc.balanceOf(address);
         console.log('Relayer USDC balance:', ethers.utils.formatUnits(usdcBalance, 6));
 
         if (maticBalance.lt(MIN_MATIC_BALANCE)) {
             throw new Error(`Insufficient MATIC balance. Required: 0.1 MATIC, Available: ${ethers.utils.formatEther(maticBalance)} MATIC`);
-        }
-
-        // Проверяем разрешение USDC для контракта
-        console.log('Checking USDC allowance...');
-        const allowance = await usdc.allowance(address, CONTRACT_ADDRESS);
-        console.log('Current USDC allowance:', ethers.utils.formatUnits(allowance, 6));
-        
-        if (allowance.eq(0)) {
-            console.log('Approving USDC for contract...');
-            const approveTx = await usdc.approve(
-                CONTRACT_ADDRESS, 
-                ethers.constants.MaxUint256,
-                GAS_SETTINGS
-            );
-            console.log('Approve transaction sent:', approveTx.hash);
-            console.log('Waiting for approval confirmation...');
-            await approveTx.wait();
-            console.log('USDC approved for contract');
-        } else {
-            console.log('USDC already approved');
         }
 
         console.log('Relayer initialization completed');

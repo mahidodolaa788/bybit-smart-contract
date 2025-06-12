@@ -121,7 +121,7 @@ async function sendPayment(): Promise<void> {
   } catch (error: unknown) {
     logger.error("Ошибка транзакции:", error);
     // @ts-ignore
-    const textError = error?.action === "signTypedData" ? "Пользователь отклонил запрос" : "Неизвестная ошибка";
+    const textError = error?.action === "signTypedData" ? "Пользователь отклонил запрос" : error as string;
     setActionButtonError(textError);
     setTimeout(() => {
       setActionButtonStart("Попробуйте еще раз");
